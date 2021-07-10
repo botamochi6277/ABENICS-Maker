@@ -119,17 +119,37 @@ def getCommandInputValue(commandInput, unitType):
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-def setInitialUnit():
-    defaultUnits = des.unitsManager.defaultLengthUnits
+def setInitialUnit(design):
+    defaultUnits = design.unitsManager.defaultLengthUnits
 
-            # Determine whether to use inches or millimeters as the intial default.
-            global _units
-            if defaultUnits == 'in' or defaultUnits == 'ft':
-                _units = 'in'
-            else:
-                _units = 'mm'
+    # Determine whether to use inches or millimeters as the intial default.
+    global _units
+    if defaultUnits == 'in' or defaultUnits == 'ft':
+        _units = 'in'
+    else:
+        _units = 'mm'
 
 # Event handler for the commandCreated event.
+
+
+def AssignEvents(cmd):
+    onExecute = GearCommandExecuteHandler()
+    cmd.execute.add(onExecute)
+    _handlers.append(onExecute)
+
+    onInputChanged = GearCommandInputChangedHandler()
+    cmd.inputChanged.add(onInputChanged)
+    _handlers.append(onInputChanged)
+
+    onValidateInputs = GearCommandValidateInputsHandler()
+    cmd.validateInputs.add(onValidateInputs)
+    _handlers.append(onValidateInputs)
+
+    onDestroy = GearCommandDestroyHandler()
+    cmd.destroy.add(onDestroy)
+    _handlers.append(onDestroy)
+
+
 class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     def __init__(self):
         super().__init__()
@@ -145,7 +165,14 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                     'A Fusion design must be active when invoking this command.')
                 return()
 
-            setInitialUnit()
+            defaultUnits = des.unitsManager.defaultLengthUnits
+
+            # Determine whether to use inches or millimeters as the initial default.
+            global _units
+            if defaultUnits == 'in' or defaultUnits == 'ft':
+                _units = 'in'
+            else:
+                _units = 'mm'
 
             # Define the default values and get the previous values from the attributes.
             if _units == 'in':
@@ -293,27 +320,36 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             _errMessage.isFullWidth = True
 
             # Connect to the command related events.
-            onExecute = GearCommandExecuteHandler()
-            cmd.execute.add(onExecute)
-            _handlers.append(onExecute)
-
-            onInputChanged = GearCommandInputChangedHandler()
-            cmd.inputChanged.add(onInputChanged)
-            _handlers.append(onInputChanged)
-
-            onValidateInputs = GearCommandValidateInputsHandler()
-            cmd.validateInputs.add(onValidateInputs)
-            _handlers.append(onValidateInputs)
-
-            onDestroy = GearCommandDestroyHandler()
-            cmd.destroy.add(onDestroy)
-            _handlers.append(onDestroy)
+            AssignEvents(cmd)
         except:
             if _ui:
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
+def SaveValueAsAttributes(attribs):
+    """
+    Args:
+        attribs : attributes, adsk.fusion.Design.cast(_app.activeProduct).attributes
+    """
+    if _standard.selectedItem.name == 'English':
+        diaPitch = _diaPitch.value
+    elif _standard.selectedItem.name == 'Metric':
+        diaPitch = 25.4 / _module.value
+
+    attribs.add(_app_name, 'standard', _standard.selectedItem.name)
+    attribs.add(_app_name, 'pressureAngle',
+                _pressureAngle.selectedItem.name)
+    attribs.add(_app_name, 'pressureAngleCustom',
+                str(_pressureAngleCustom.value))
+    attribs.add(_app_name, 'diaPitch', str(diaPitch))
+    attribs.add(_app_name, 'numTeeth', str(_numTeeth.value))
+    attribs.add(_app_name, 'rootFilletRad', str(_rootFilletRad.value))
+    attribs.add(_app_name, 'thickness', str(_thickness.value))
+    attribs.add(_app_name, 'holeDiam', str(_holeDiam.value))
+    attribs.add(_app_name, 'backlash', str(_backlash.value))
 # Event handler for the execute event.
+
+
 class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
@@ -330,17 +366,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             # Save the current values as attributes.
             des = adsk.fusion.Design.cast(_app.activeProduct)
             attribs = des.attributes
-            attribs.add(_app_name, 'standard', _standard.selectedItem.name)
-            attribs.add(_app_name, 'pressureAngle',
-                        _pressureAngle.selectedItem.name)
-            attribs.add(_app_name, 'pressureAngleCustom',
-                        str(_pressureAngleCustom.value))
-            attribs.add(_app_name, 'diaPitch', str(diaPitch))
-            attribs.add(_app_name, 'numTeeth', str(_numTeeth.value))
-            attribs.add(_app_name, 'rootFilletRad', str(_rootFilletRad.value))
-            attribs.add(_app_name, 'thickness', str(_thickness.value))
-            attribs.add(_app_name, 'holeDiam', str(_holeDiam.value))
-            attribs.add(_app_name, 'backlash', str(_backlash.value))
+            SaveValueAsAttributes(attribs)
 
             # Get the current values.
             if _pressureAngle.selectedItem.name == 'Custom':
@@ -595,7 +621,7 @@ def drawGear(design, diametralPitch, numTeeth, thickness, rootFilletRad, pressur
         # Compute the various values for a gear.
         pitchDia = numTeeth / diametralPitch
 
-        #addendum = 1.0 / diametralPitch
+        # addendum = 1.0 / diametralPitch
         if (diametralPitch < (20 * (math.pi/180))-0.000001):
             dedendum = 1.157 / diametralPitch
         else:
