@@ -60,6 +60,7 @@ class ABENICS:
 
         d_pinion (float): diameter of pitch circle of a pinion gear
         num_teeth_pinion (int): the num. of a pinion gear 
+        d_hole_pinion (float): hole of a pinion gear
 
     Notes:
         module = diameter / num_teeth
@@ -75,6 +76,20 @@ class ABENICS:
 
         self.d_pinion = 10.0
         self.num_teeth_pinion = int(self.d_pinion/self.module)
+        self.d_hole_pinion = 4.0
+
+    def AssignValues(**kwargs):
+        pass
+
+    def Create():
+        # Draw Spurgear for a ball gear
+        # Revolve the spurgear sketch around x-axis to create a new body
+        # Revolve the spurgear sketch around y-axis
+
+        # Draw Circles for a pinion gear
+        # Extrude the sketch to make a new body
+        # rotate ball gear and the new body and engrave teeth
+        pass
 
 
 def run(context):
