@@ -49,6 +49,34 @@ _handlers = []
 _app_name = 'ABENICS'
 
 
+class ABENICS:
+    """
+    Attributes:
+        module (int): module of gear
+        pressure_angle (float): pressure angle of gear
+
+        d_ball (float): diameter of pitch circle of a ball gear
+        num_teeth_ball (int): the num. of ball gear as spurgear
+
+        d_pinion (float): diameter of pitch circle of a pinion gear
+        num_teeth_pinion (int): the num. of a pinion gear 
+
+    Notes:
+        module = diameter / num_teeth
+        pitch = 2 * pi / num_teeth
+    """
+
+    def __init__(self) -> None:
+        self.module = 1
+        self.pressure_angle = 20.0  # [deg]
+
+        self.d_ball = 40.0
+        self.num_teeth_ball = int(self.d_ball / self.module)
+
+        self.d_pinion = 10.0
+        self.num_teeth_pinion = int(self.d_pinion/self.module)
+
+
 def run(context):
     try:
         global _app, _ui
