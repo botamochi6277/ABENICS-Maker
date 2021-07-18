@@ -14,6 +14,7 @@ Note:
     Default length unit of Fusion360 Script is cm.
 
     IEEE Paper of ABENICS: https://ieeexplore.ieee.org/document/9415699
+    Gear: https://en.wikipedia.org/wiki/Gear
 """
 
 import adsk.core
@@ -93,33 +94,38 @@ class ABENICS:
             od (float) : outside circle diameter
         """
         # involuteIntersectionRadius
-        r = 0.5 * bd
+        # r = 0.5 * bd
         involute_points = []
-        involute_size = 0.5 * (od - bd)
+        involute_size = 0.5 * (od - bd)  # height
         for i in range(0, num):
             r = (0.5*bd) + ((involute_size / (num - 1)) * i)
             p = involutePoint(0.5 * bd, r)
             involute_points.append(p)
         return involute_points
 
+    def xy2polar(points):
+        distances = []
+        angles = []
+        count = len(points)
+        for i in range(0, count):
+            distances.append(math.sqrt(
+                points[i].x * points[i].x + points[i].y * points[i].y))
+            angles.append(
+                math.atan(points[i].y / points[i].x))
+        return distances, angles
+
     def DrawGear(self, design):
-        diametralPitch = 1.0  # dummy
-        diametralPitch = diametralPitch / 2.54
+        # https://eow.alc.co.jp/search?q=dedendum
+        # https://khkgears.net/new/gear_knowledge/abcs_of_gears-b/basic_gear_terminology_calculation.html
+        # what is 20?
 
-        # Compute the various values for a gear.
-        pitchDia = self.num_teeth_ball / diametralPitch
+        # Tooth depth
+        # h = 2.25 * self.module
+        addendum = 1.0 * self.module
+        dedendum = 1.25 * self.module
 
-        # addendum = 1.0 / diametralPitch
-        if (diametralPitch < (20 * (math.pi/180))-0.000001):
-            dedendum = 1.157 / diametralPitch
-        else:
-            circularPitch = math.pi / diametralPitch
-            if circularPitch >= 20:
-                dedendum = 1.25 / diametralPitch
-            else:
-                dedendum = (1.2 / diametralPitch) + (.002 * 2.54)
-
-        rootDia = pitchDia - (2 * dedendum)
+        rootDia = self.d_ball - 2 * dedendum
+        # rootDia = self.d_ball - 2.5*self.module
 
         # Create a new component by creating an occurrence.
         occs = design.rootComponent.occurrences
@@ -127,50 +133,52 @@ class ABENICS:
         newOcc = occs.addNewComponent(mat)
         newComp = adsk.fusion.Component.cast(newOcc.component)
 
-        self.ball = newComp
+        # self.ball = newComp
 
         baseCircleDia = self.d_ball * math.cos(self.pressure_angle)
-        outsideDia = (self.num_teeth_ball + 2) / self.d_ball
+
+        # tip diameter
+        # outsideDia = (self.num_teeth_ball + 2) / self.d_ball
+        tip_diameter = self.d_ball + 2 * self.module
+        # tip_diameter = self.d_ball + 2 * addendum
+
+        # ---
 
         # Create a new sketch.
         sketches = newComp.sketches
         xyPlane = newComp.xYConstructionPlane
         baseSketch = sketches.add(xyPlane)
 
-        # Draw a circle for the base.
+        # Draw a circle.
         origin = adsk.core.Point3D.create(0, 0, 0)
-        # Draw a circle for the base.
+        # Draw a root circle.
         baseSketch.sketchCurves.sketchCircles.addByCenterRadius(
-            origin, 0.5*self.d_ball)
+            origin, 0.5*rootDia)
 
         # Calculate points along the involute curve.
         involutePointCount = 15  # resolution
         involuteIntersectionRadius = 0.5 * baseCircleDia
         involutePoints = []
-        involuteSize = 0.5 * (outsideDia - baseCircleDia)
-        for i in range(0, involutePointCount):
-            involuteIntersectionRadius = (
-                baseCircleDia / 2.0) + ((involuteSize / (involutePointCount - 1)) * i)
-            newPoint = involutePoint(
-                baseCircleDia / 2.0, involuteIntersectionRadius)
-            involutePoints.append(newPoint)
+        involutePoints = self.involutePoints(
+            baseCircleDia, tip_diameter, num=involutePointCount)
 
         # Get the point along the tooth that's at the pitch diameter and then
         # calculate the angle to that point.
         pitchInvolutePoint = involutePoint(
-            baseCircleDia / 2.0, self.d_ball / 2.0)
+            0.5*baseCircleDia, 0.5*self.d_ball)
         pitchPointAngle = math.atan(
             pitchInvolutePoint.y / pitchInvolutePoint.x)
 
         # Determine the angle defined by the tooth thickness as measured at
         # the pitch diameter circle.
+        # ! this is half circular pitch angle
         toothThicknessAngle = (2 * math.pi) / (2 * self.num_teeth_ball)
 
         # Determine the angle needed for the specified backlash.
-        backlashAngle = (self.backlash / (self.d_ball / 2.0)) * .25
+        backlashAngle = (self.backlash / (0.5*self.d_ball)) * .25
 
         # Determine the angle to rotate the curve.
-        rotateAngle = -((toothThicknessAngle/2) +
+        rotateAngle = -((0.5*toothThicknessAngle) +
                         pitchPointAngle - backlashAngle)
 
         # Rotate the involute so the middle of the tooth lies on the x axis.
@@ -190,21 +198,8 @@ class ABENICS:
             involute2Points.append(adsk.core.Point3D.create(
                 involutePoints[i].x, -involutePoints[i].y, 0))
 
-        curve1Dist = []
-        curve1Angle = []
-        for i in range(0, involutePointCount):
-            curve1Dist.append(math.sqrt(
-                involutePoints[i].x * involutePoints[i].x + involutePoints[i].y * involutePoints[i].y))
-            curve1Angle.append(
-                math.atan(involutePoints[i].y / involutePoints[i].x))
-
-        curve2Dist = []
-        curve2Angle = []
-        for i in range(0, involutePointCount):
-            curve2Dist.append(math.sqrt(
-                involute2Points[i].x * involute2Points[i].x + involute2Points[i].y * involute2Points[i].y))
-            curve2Angle.append(
-                math.atan(involute2Points[i].y / involute2Points[i].x))
+        curve1Dist, curve1Angle = self.xy2polar(involutePoints)
+        curve2Dist, curve2Angle = self.xy2polar(involute2Points)
 
         baseSketch.isComputeDeferred = True
 
@@ -225,7 +220,7 @@ class ABENICS:
         spline2 = baseSketch.sketchCurves.sketchFittedSplines.add(pointSet)
 
         # Draw the arc for the top of the tooth.
-        midPoint = adsk.core.Point3D.create((outsideDia / 2), 0, 0)
+        midPoint = adsk.core.Point3D.create((0.5*tip_diameter), 0, 0)
         baseSketch.sketchCurves.sketchArcs.addByThreePoints(
             spline1.endSketchPoint, midPoint, spline2.endSketchPoint)
 
@@ -236,12 +231,12 @@ class ABENICS:
                 spline2.startSketchPoint, spline1.startSketchPoint)
         else:
             rootPoint1 = adsk.core.Point3D.create(
-                (rootDia / 2 - 0.001) * math.cos(curve1Angle[0]), (rootDia / 2) * math.sin(curve1Angle[0]), 0)
+                (0.5*rootDia - 0.001) * math.cos(curve1Angle[0]), (0.5*rootDia) * math.sin(curve1Angle[0]), 0)
             line1 = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
                 rootPoint1, spline1.startSketchPoint)
 
             rootPoint2 = adsk.core.Point3D.create(
-                (rootDia / 2 - 0.001) * math.cos(curve2Angle[0]), (rootDia / 2) * math.sin(curve2Angle[0]), 0)
+                (0.5*rootDia - 0.001) * math.cos(curve2Angle[0]), (0.5*rootDia) * math.sin(curve2Angle[0]), 0)
             line2 = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
                 rootPoint2, spline2.startSketchPoint)
 
