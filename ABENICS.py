@@ -70,7 +70,7 @@ class ABENICS:
         https://en.wikipedia.org/wiki/Backlash_(engineering)
     """
 
-    def __init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         self.module = 1
         self.pressure_angle = 20.0 * math.pi/180.0  # [rad]
 
@@ -85,34 +85,6 @@ class ABENICS:
 
     def AssignValues(self, **kwargs):
         pass
-
-    def involutePoints(bd, od, num=15):
-        # Calculate points along the involute curve.
-        """
-        Args:
-            bd (float) : base circle diameter
-            od (float) : outside circle diameter
-        """
-        # involuteIntersectionRadius
-        # r = 0.5 * bd
-        involute_points = []
-        involute_size = 0.5 * (od - bd)  # height
-        for i in range(0, num):
-            r = (0.5*bd) + ((involute_size / (num - 1)) * i)
-            p = involutePoint(0.5 * bd, r)
-            involute_points.append(p)
-        return involute_points
-
-    def xy2polar(points):
-        distances = []
-        angles = []
-        count = len(points)
-        for i in range(0, count):
-            distances.append(math.sqrt(
-                points[i].x * points[i].x + points[i].y * points[i].y))
-            angles.append(
-                math.atan(points[i].y / points[i].x))
-        return distances, angles
 
     def DrawGear(self, design):
         # https://eow.alc.co.jp/search?q=dedendum
@@ -133,7 +105,7 @@ class ABENICS:
         newOcc = occs.addNewComponent(mat)
         newComp = adsk.fusion.Component.cast(newOcc.component)
 
-        # self.ball = newComp
+        self.ball_comp = newComp
 
         baseCircleDia = self.d_ball * math.cos(self.pressure_angle)
 
@@ -158,8 +130,8 @@ class ABENICS:
         # Calculate points along the involute curve.
         involutePointCount = 15  # resolution
         involuteIntersectionRadius = 0.5 * baseCircleDia
-        involutePoints = []
-        involutePoints = self.involutePoints(
+        involute_points = []
+        involute_points = get_involutePoints(
             baseCircleDia, tip_diameter, num=involutePointCount)
 
         # Get the point along the tooth that's at the pitch diameter and then
@@ -185,28 +157,28 @@ class ABENICS:
         cosAngle = math.cos(rotateAngle)
         sinAngle = math.sin(rotateAngle)
         for i in range(0, involutePointCount):
-            newX = involutePoints[i].x * cosAngle - \
-                involutePoints[i].y * sinAngle
-            newY = involutePoints[i].x * sinAngle + \
-                involutePoints[i].y * cosAngle
-            involutePoints[i] = adsk.core.Point3D.create(newX, newY, 0)
+            newX = involute_points[i].x * cosAngle - \
+                involute_points[i].y * sinAngle
+            newY = involute_points[i].x * sinAngle + \
+                involute_points[i].y * cosAngle
+            involute_points[i] = adsk.core.Point3D.create(newX, newY, 0)
 
         # Create a new set of points with a negated y.  This effectively mirrors the original
         # points about the X axis.
         involute2Points = []
         for i in range(0, involutePointCount):
             involute2Points.append(adsk.core.Point3D.create(
-                involutePoints[i].x, -involutePoints[i].y, 0))
+                involute_points[i].x, -involute_points[i].y, 0))
 
-        curve1Dist, curve1Angle = self.xy2polar(involutePoints)
-        curve2Dist, curve2Angle = self.xy2polar(involute2Points)
+        curve1Dist, curve1Angle = xy2polar(involute_points)
+        curve2Dist, curve2Angle = xy2polar(involute2Points)
 
         baseSketch.isComputeDeferred = True
 
         # Create and load an object collection with the points.
         pointSet = adsk.core.ObjectCollection.create()
         for i in range(0, involutePointCount):
-            pointSet.add(involutePoints[i])
+            pointSet.add(involute_points[i])
 
         # Create the first spline.
         spline1 = baseSketch.sketchCurves.sketchFittedSplines.add(pointSet)
@@ -599,8 +571,13 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             backlash = _backlash.value
 
             # Create the gear.
-            gearComp = drawGear(des, diaPitch, numTeeth, thickness,
-                                rootFilletRad, pressureAngle, backlash, holeDiam)
+            # gearComp = drawGear(des, diaPitch, numTeeth, thickness,
+            #                     rootFilletRad, pressureAngle, backlash, holeDiam)
+
+            abenics = ABENICS()
+
+            abenics.DrawGear(design=des)
+            gearComp = abenics.ball_comp
 
             if gearComp:
                 if _standard.selectedItem.name == 'English':
@@ -797,7 +774,49 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-# Calculate points along an involute curve.
+def get_involutePoints(bd, od, num=15):
+    # Calculate points along the involute curve.
+    """
+        Args:
+            bd (float) : base circle diameter
+            od (float) : outside circle diameter
+        """
+    # involuteIntersectionRadius
+    # r = 0.5 * bd
+    points = []
+    involute_size = 0.5 * (od - bd)  # height
+    for i in range(0, num):
+        r = (0.5*bd) + ((involute_size / (num - 1)) * i)
+        p = involutePoint(0.5 * bd, r)
+        points.append(p)
+    return points
+
+
+def xy2polar(points):
+    """
+    convert position in xy-coordinate sys. to r-theta one
+
+    Args:
+        points (list) : list of adsk.core.Point3D
+    Returns:
+        list: distances from origin
+        list: angles from x-axis
+    """
+    distances = []
+    angles = []
+    count = len(points)
+    for i in range(0, count):
+        distances.append(math.sqrt(
+            points[i].x * points[i].x + points[i].y * points[i].y))
+        angles.append(
+            math.atan(points[i].y / points[i].x))
+    return distances, angles
+
+
+def rotate_points(points, center, angle):
+    pass
+
+
 def involutePoint(baseCircleRadius, distFromCenterToInvolutePoint):
     try:
         # Calculate the other side of the right-angle triangle defined by the base circle and the current distance radius.
