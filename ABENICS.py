@@ -122,11 +122,13 @@ class ABENICS:
         xyPlane = newComp.xYConstructionPlane
         baseSketch = sketches.add(xyPlane)
 
-        # Draw a circle.
         origin = adsk.core.Point3D.create(0, 0, 0)
-        # Draw a root circle.
-        baseSketch.sketchCurves.sketchCircles.addByCenterRadius(
-            origin, 0.5*rootDia)
+        # Draw a root fan shape.
+        baseSketch.sketchCurves.sketchArcs.addByCenterStartSweep(
+            origin, adsk.core.Point3D.create(0.5*rootDia, 0, 0), math.pi)
+        baseSketch.sketchCurves.sketchLines.addByTwoPoints(
+            adsk.core.Point3D.create(0.5*rootDia, 0, 0),
+            adsk.core.Point3D.create(-0.5*rootDia, 0, 0))
 
         # Calculate points along the involute curve.
         involutePointCount = 15  # resolution
