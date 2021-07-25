@@ -224,7 +224,7 @@ class ABENICS:
         # Draw a root fan shape.
         baseSketch.sketchCurves.sketchArcs.addByCenterStartSweep(
             origin, adsk.core.Point3D.create(0.5*root_dia, 0, 0), math.pi)
-        baseSketch.sketchCurves.sketchLines.addByTwoPoints(
+        l = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
             adsk.core.Point3D.create(0.5*root_dia, 0, 0),
             adsk.core.Point3D.create(-0.5*root_dia, 0, 0))
 
@@ -241,6 +241,8 @@ class ABENICS:
                             angle=angle)
 
         baseSketch.isComputeDeferred = False
+
+        return baseSketch, l
 
     def Create():
         # Draw Spurgear for a ball gear
@@ -590,12 +592,25 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             backlash = _backlash.value
 
             # Create the gear.
-            # gearComp = draw_gear(des, diaPitch, numTeeth, thickness,
+            # gearComp = drawGear(des, diaPitch, numTeeth, thickness,
             #                     rootFilletRad, pressureAngle, backlash, holeDiam)
 
             abenics = ABENICS()
 
-            abenics.draw_gear(design=des)
+            sk, ax_line = abenics.draw_gear(design=des)
+            # revolve profiles
+            revolves = abenics.ball_comp.features.revolveFeatures
+            profile_set = adsk.core.ObjectCollection.create()
+            for i in range(len(sk.profiles)):
+                profile_set.add(sk.profiles.item(i))
+            revInput = revolves.createInput(
+                profile_set, ax_line, adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
+            angle = adsk.core.ValueInput.createByReal(2*math.pi)
+            revInput.setAngleExtent(False, angle)
+
+            # Create the extrusion.
+            ext = revolves.add(revInput)
+
             gearComp = abenics.ball_comp
 
             if gearComp:
