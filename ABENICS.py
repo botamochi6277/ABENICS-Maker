@@ -76,6 +76,7 @@ class ABENICS:
 
         self.d_ball = 40.0
         self.num_teeth_ball = int(self.d_ball / self.module)
+        self.pitch_angle = 2.0*math.pi/self.num_teeth_ball
 
         self.d_pinion = 10.0
         self.num_teeth_pinion = int(self.d_pinion/self.module)
@@ -130,8 +131,8 @@ class ABENICS:
         # Calculate points along the involute curve.
         involutePointCount = 15  # resolution
         involuteIntersectionRadius = 0.5 * baseCircleDia
-        involute_points = []
-        involute_points = get_involutePoints(
+        involute_points_a = []
+        involute_points_a = get_involutePoints(
             baseCircleDia, tip_diameter, num=involutePointCount)
 
         # Get the point along the tooth that's at the pitch diameter and then
@@ -154,24 +155,30 @@ class ABENICS:
                         pitchPointAngle - backlashAngle)
 
         # Rotate the involute so the middle of the tooth lies on the x axis.
-        involute_points = rotate_points(involute_points, rotateAngle)
+        involute_points_a = rotate_points(involute_points_a, rotateAngle)
 
         # Create a new set of points with a negated y.  This effectively mirrors the original
         # points about the X axis.
-        involute2Points = []
+        involute_points_b = []
         for i in range(0, involutePointCount):
-            involute2Points.append(adsk.core.Point3D.create(
-                involute_points[i].x, -involute_points[i].y, 0))
+            involute_points_b.append(adsk.core.Point3D.create(
+                involute_points_a[i].x, -involute_points_a[i].y, 0))
 
-        curve1Dist, curve1Angle = xy2polar(involute_points)
-        curve2Dist, curve2Angle = xy2polar(involute2Points)
+        # rotate points by half pitch angle
+        involute_points_a = rotate_points(
+            involute_points_a, 0.5*self.pitch_angle)
+        involute_points_b = rotate_points(
+            involute_points_b, 0.5*self.pitch_angle)
+
+        curve1Dist, curve1Angle = xy2polar(involute_points_a)
+        curve2Dist, curve2Angle = xy2polar(involute_points_b)
 
         baseSketch.isComputeDeferred = True
 
         # Create and load an object collection with the points.
         pointSet = adsk.core.ObjectCollection.create()
         for i in range(0, involutePointCount):
-            pointSet.add(involute_points[i])
+            pointSet.add(involute_points_a[i])
 
         # Create the first spline.
         spline1 = baseSketch.sketchCurves.sketchFittedSplines.add(pointSet)
@@ -179,13 +186,16 @@ class ABENICS:
         # Add the involute points for the second spline to an ObjectCollection.
         pointSet = adsk.core.ObjectCollection.create()
         for i in range(0, involutePointCount):
-            pointSet.add(involute2Points[i])
+            pointSet.add(involute_points_b[i])
 
         # Create the second spline.
         spline2 = baseSketch.sketchCurves.sketchFittedSplines.add(pointSet)
 
         # Draw the arc for the top of the tooth.
         midPoint = adsk.core.Point3D.create((0.5*tip_diameter), 0, 0)
+        # todo :rotate mid_point
+        midPoint = rotate_points(midPoint, 0.5*self.pitch_angle)
+
         baseSketch.sketchCurves.sketchArcs.addByThreePoints(
             spline1.endSketchPoint, midPoint, spline2.endSketchPoint)
 
@@ -767,6 +777,10 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
+def _isArrayLike(obj):
+    return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
+
+
 def get_involutePoints(bd, od, num=15):
     # Calculate points along the involute curve.
     """
@@ -811,7 +825,10 @@ def rotate_points(points, angle, center=None):
     cos_val = math.cos(angle)
     sin_val = math.sin(angle)
 
-    rotate_points = list()
+    rotated_points = list()
+
+    if not _isArrayLike(points):
+        points = [points]
 
     for i in range(len(points)):
         p = adsk.core.Point3D.create(0, 0, 0)
@@ -825,9 +842,12 @@ def rotate_points(points, angle, center=None):
         if center is not None:
             p.x += center.x
             p.y += center.y
-        rotate_points.append(p)
+        rotated_points.append(p)
 
-    return rotate_points
+    if len(rotated_points) == 1:
+        return rotated_points[0]
+
+    return rotated_points
 
 
 def involutePoint(baseCircleRadius, distFromCenterToInvolutePoint):
