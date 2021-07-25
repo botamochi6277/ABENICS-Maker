@@ -70,7 +70,7 @@ class ABENICS:
         https://en.wikipedia.org/wiki/Backlash_(engineering)
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, design, **kwargs) -> None:
         self.module = 1
         self.pressure_angle = 20.0 * math.pi/180.0  # [rad]
 
@@ -83,6 +83,12 @@ class ABENICS:
         self.d_hole_pinion = 4.0
 
         self.backlash = 1.0
+
+        # Create a new component by creating an occurrence.
+        occs = design.rootComponent.occurrences
+        mat = adsk.core.Matrix3D.create()
+        newOcc = occs.addNewComponent(mat)
+        self.ball_comp = adsk.fusion.Component.cast(newOcc.component)
 
     def draw_teeth(self, sketch, root_diameter, tip_diameter, angle=0):
         base_diameter = self.d_ball * math.cos(self.pressure_angle)
@@ -185,7 +191,7 @@ class ABENICS:
     def assign_values(self, **kwargs):
         pass
 
-    def draw_gear(self, design):
+    def draw_gear(self, sketch, axis_angle=0):
         # https://eow.alc.co.jp/search?q=dedendum
         # https://khkgears.net/new/gear_knowledge/abcs_of_gears-b/basic_gear_terminology_calculation.html
         # what is 20?
@@ -198,12 +204,6 @@ class ABENICS:
         root_dia = self.d_ball - 2 * dedendum
         # root_dia = self.d_ball - 2.5*self.module
 
-        # Create a new component by creating an occurrence.
-        occs = design.rootComponent.occurrences
-        mat = adsk.core.Matrix3D.create()
-        newOcc = occs.addNewComponent(mat)
-        self.ball_comp = adsk.fusion.Component.cast(newOcc.component)
-
         baseCircleDia = self.d_ball * math.cos(self.pressure_angle)
 
         # tip diameter
@@ -211,45 +211,43 @@ class ABENICS:
         tip_diameter = self.d_ball + 2 * self.module
         # tip_diameter = self.d_ball + 2 * addendum
 
-        # ---
-
-        # Create a new sketch.
-        sketches = self.ball_comp.sketches
-        xyPlane = self.ball_comp.xYConstructionPlane
-        baseSketch = sketches.add(xyPlane)
-
         origin = adsk.core.Point3D.create(0, 0, 0)
         # Draw a root fan shape.
-        baseSketch.sketchCurves.sketchArcs.addByCenterStartSweep(
-            origin, adsk.core.Point3D.create(0.5*root_dia, 0, 0), math.pi)
-        l = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
-            adsk.core.Point3D.create(0.5*root_dia, 0, 0),
-            adsk.core.Point3D.create(-0.5*root_dia, 0, 0))
+        arc_start = adsk.core.Point3D.create(0.5*root_dia, 0, 0)
+        arc_end = adsk.core.Point3D.create(-0.5*root_dia, 0, 0)
+        arc_start = rotate_points(arc_start, axis_angle)
+        arc_end = rotate_points(arc_end, axis_angle)
 
-        c = baseSketch.sketchCurves.sketchCircles.addByCenterRadius(
+        sketch.sketchCurves.sketchArcs.addByCenterStartSweep(
+            origin, arc_start, math.pi)
+        l = sketch.sketchCurves.sketchLines.addByTwoPoints(
+            arc_start,
+            arc_end)
+
+        c = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             adsk.core.Point3D.create(0, 0, 0), 0.5*tip_diameter)
         c.isConstruction = True
 
         # draw tooth
         for i in range(int(0.5*self.num_teeth_ball)):
-            angle = self.pitch_angle * i + 0.5*self.pitch_angle
-            self.draw_teeth(baseSketch,
+            angle = self.pitch_angle * i + 0.5*self.pitch_angle + axis_angle
+            self.draw_teeth(sketch,
                             root_diameter=root_dia,
                             tip_diameter=tip_diameter,
                             angle=angle)
 
-        baseSketch.isComputeDeferred = False
+        sketch.isComputeDeferred = False
 
-        return baseSketch, l
+        return sketch, l
 
-    def revolve_ballgear(self, sk, ax_line):
+    def revolve_ballgear(self, sk, ax_line, operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation):
         # revolve profiles
         revolves = self.ball_comp.features.revolveFeatures
         profile_set = adsk.core.ObjectCollection.create()
         for i in range(len(sk.profiles)):
             profile_set.add(sk.profiles.item(i))
         revInput = revolves.createInput(
-            profile_set, ax_line, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            profile_set, ax_line, operation)
         angle = adsk.core.ValueInput.createByReal(2*math.pi)
         revInput.setAngleExtent(False, angle)
         ext = revolves.add(revInput)
@@ -605,10 +603,19 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             # gearComp = drawGear(des, diaPitch, numTeeth, thickness,
             #                     rootFilletRad, pressureAngle, backlash, holeDiam)
 
-            abenics = ABENICS()
+            abenics = ABENICS(design=des)
+            # Create a new sketch.
+            sketches = abenics.ball_comp.sketches
+            xyPlane = abenics.ball_comp.xYConstructionPlane
+            baseSketch = sketches.add(xyPlane)
 
-            sk, ax_line = abenics.draw_gear(design=des)
+            sk, ax_line = abenics.draw_gear(baseSketch)
             abenics.revolve_ballgear(sk, ax_line)
+
+            i_sketch = sketches.add(xyPlane)
+            sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
+            abenics.revolve_ballgear(
+                sk, ax_line, operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation)
 
             gearComp = abenics.ball_comp
 
