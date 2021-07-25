@@ -272,6 +272,23 @@ class ABENICS:
         sketch.sketchCurves.sketchCircles.addByCenterRadius(
             center, 0.5*self.d_hole_pinion)
 
+    def extrude_mp(self, sketch, thickness):
+        prof = adsk.fusion.Profile.cast(None)
+        # Find the profile that uses both circles.
+        for prof in sketch.profiles:
+            if prof.profileLoops.count == 2:
+                break
+
+        extrudes = self.mp_comp.features.extrudeFeatures
+        extInput = extrudes.createInput(
+            prof, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+        # Define that the extent is a distance extent of 5 cm.
+        distance = adsk.core.ValueInput.createByReal(thickness)
+        # extInput.setDistanceExtent(False, distance)
+        extInput.setSymmetricExtent(distance, True)
+        mp_extrude = extrudes.add(extInput)
+
     def Create():
         # Draw Spurgear for a ball gear
         # Revolve the spurgear sketch around x-axis to create a new body
@@ -645,25 +662,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             xyPlane = abenics.mp_comp.xYConstructionPlane
             mp_sketch = sketches.add(xyPlane)
             abenics.draw_mp_sketch(mp_sketch)
-
-            prof = adsk.fusion.Profile.cast(None)
-            # Find the profile that uses both circles.
-            for prof in mp_sketch.profiles:
-                if prof.profileLoops.count == 2:
-                    break
-
-            extrudes = abenics.mp_comp.features.extrudeFeatures
-            extInput = extrudes.createInput(
-                prof, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-
-            # Define that the extent is a distance extent of 5 cm.
-            distance = adsk.core.ValueInput.createByReal(thickness)
-            # extInput.setDistanceExtent(False, distance)
-            extInput.setSymmetricExtent(distance, True)
-            mp_extrude = extrudes.add(extInput)
-
-            # Create the extrusion.
-            baseExtrude = extrudes.add(extInput)
+            abenics.extrude_mp(mp_sketch, thickness)
 
             gearComp = abenics.sh_comp
 
