@@ -74,21 +74,30 @@ class ABENICS:
         self.module = 1
         self.pressure_angle = 20.0 * math.pi/180.0  # [rad]
 
-        self.d_ball = 40.0
+        self.d_ball = 40.0  # cm
         self.num_teeth_ball = int(self.d_ball / self.module)
         self.pitch_angle = 2.0*math.pi/self.num_teeth_ball
 
-        self.d_pinion = 10.0
-        self.num_teeth_pinion = int(self.d_pinion/self.module)
-        self.d_hole_pinion = 4.0
+        self.gear_ratio = 4
 
-        self.backlash = 1.0
+        self.d_pinion = self.d_ball/self.gear_ratio
+        self.num_teeth_pinion = int(self.d_pinion/self.module)
+        self.d_hole_pinion = 0.4  # cm
+
+        self.backlash = 0.1  # cm
 
         # Create a new component by creating an occurrence.
-        occs = design.rootComponent.occurrences
+        self.root_occurrences = design.rootComponent.occurrences
+
+    def make_sh_comp(self):
         mat = adsk.core.Matrix3D.create()
-        newOcc = occs.addNewComponent(mat)
-        self.ball_comp = adsk.fusion.Component.cast(newOcc.component)
+        newOcc = self.root_occurrences.addNewComponent(mat)
+        self.sh_comp = adsk.fusion.Component.cast(newOcc.component)
+
+    def make_mp_comp(self):
+        mat = adsk.core.Matrix3D.create()
+        newOcc = self.root_occurrences.addNewComponent(mat)
+        self.mp_comp = adsk.fusion.Component.cast(newOcc.component)
 
     def draw_teeth(self, sketch, root_diameter, tip_diameter, angle=0):
         base_diameter = self.d_ball * math.cos(self.pressure_angle)
@@ -242,7 +251,7 @@ class ABENICS:
 
     def revolve_ballgear(self, sk, ax_line, operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation):
         # revolve profiles
-        revolves = self.ball_comp.features.revolveFeatures
+        revolves = self.sh_comp.features.revolveFeatures
         profile_set = adsk.core.ObjectCollection.create()
         for i in range(len(sk.profiles)):
             profile_set.add(sk.profiles.item(i))
@@ -251,6 +260,17 @@ class ABENICS:
         angle = adsk.core.ValueInput.createByReal(2*math.pi)
         revInput.setAngleExtent(False, angle)
         ext = revolves.add(revInput)
+
+    def draw_mp_sketch(self, sketch):
+        tip_diameter = self.d_pinion + 2 * self.module
+
+        center = adsk.core.Point3D.create(
+            0.5*self.d_pinion+0.5*self.d_ball, 0, 0)
+        c = sketch.sketchCurves.sketchCircles.addByCenterRadius(
+            center, 0.5*tip_diameter)
+
+        sketch.sketchCurves.sketchCircles.addByCenterRadius(
+            center, 0.5*self.d_hole_pinion)
 
     def Create():
         # Draw Spurgear for a ball gear
@@ -604,11 +624,13 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             #                     rootFilletRad, pressureAngle, backlash, holeDiam)
 
             abenics = ABENICS(design=des)
-            # Create a new sketch.
-            sketches = abenics.ball_comp.sketches
-            xyPlane = abenics.ball_comp.xYConstructionPlane
-            baseSketch = sketches.add(xyPlane)
 
+            abenics.make_sh_comp()
+            # Create a new sketch.
+            sketches = abenics.sh_comp.sketches
+            xyPlane = abenics.sh_comp.xYConstructionPlane
+            # SH Gear
+            baseSketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(baseSketch)
             abenics.revolve_ballgear(sk, ax_line)
 
@@ -617,7 +639,33 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.revolve_ballgear(
                 sk, ax_line, operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation)
 
-            gearComp = abenics.ball_comp
+            # MP Gear
+            abenics.make_mp_comp()
+            sketches = abenics.mp_comp.sketches
+            xyPlane = abenics.mp_comp.xYConstructionPlane
+            mp_sketch = sketches.add(xyPlane)
+            abenics.draw_mp_sketch(mp_sketch)
+
+            prof = adsk.fusion.Profile.cast(None)
+            # Find the profile that uses both circles.
+            for prof in mp_sketch.profiles:
+                if prof.profileLoops.count == 2:
+                    break
+
+            extrudes = abenics.mp_comp.features.extrudeFeatures
+            extInput = extrudes.createInput(
+                prof, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+            # Define that the extent is a distance extent of 5 cm.
+            distance = adsk.core.ValueInput.createByReal(thickness)
+            # extInput.setDistanceExtent(False, distance)
+            extInput.setSymmetricExtent(distance, True)
+            mp_extrude = extrudes.add(extInput)
+
+            # Create the extrusion.
+            baseExtrude = extrudes.add(extInput)
+
+            gearComp = abenics.sh_comp
 
             if gearComp:
                 if _standard.selectedItem.name == 'English':
@@ -634,6 +682,9 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                     des.unitsManager.formatInternalValue(
                         backlash, _units, True)
                 gearComp.description = desc
+
+            abenics.sh_comp.description = 'SH_Gear'
+            abenics.mp_comp.description = 'MP_Gear'
         except:
             if _ui:
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
