@@ -832,7 +832,8 @@ def xy2polar(points):
         distances.append(math.sqrt(
             points[i].x * points[i].x + points[i].y * points[i].y))
         angles.append(
-            math.atan(points[i].y / points[i].x))
+            math.atan2(points[i].y, points[i].x))
+
     return distances, angles
 
 
