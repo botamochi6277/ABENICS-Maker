@@ -123,11 +123,11 @@ class ABENICS:
             involute_points_b.append(adsk.core.Point3D.create(
                 involute_points_a[i].x, -involute_points_a[i].y, 0))
 
-        # rotate points by half pitch angle
+        # rotate points by inputted angle
         involute_points_a = rotate_points(
-            involute_points_a, 0.5*self.pitch_angle)
+            involute_points_a, angle)
         involute_points_b = rotate_points(
-            involute_points_b, 0.5*self.pitch_angle)
+            involute_points_b, angle)
 
         curve1Dist, curve1Angle = xy2polar(involute_points_a)
         curve2Dist, curve2Angle = xy2polar(involute_points_b)
@@ -135,44 +135,43 @@ class ABENICS:
         sketch.isComputeDeferred = True
 
         # Create and load an object collection with the points.
-        pointSet = adsk.core.ObjectCollection.create()
+        point_set = adsk.core.ObjectCollection.create()
         for i in range(0, involute_point_count):
-            pointSet.add(involute_points_a[i])
+            point_set.add(involute_points_a[i])
 
         # Create the first spline.
-        spline1 = sketch.sketchCurves.sketchFittedSplines.add(pointSet)
+        spline_a = sketch.sketchCurves.sketchFittedSplines.add(point_set)
 
         # Add the involute points for the second spline to an ObjectCollection.
-        pointSet = adsk.core.ObjectCollection.create()
+        point_set = adsk.core.ObjectCollection.create()
         for i in range(0, involute_point_count):
-            pointSet.add(involute_points_b[i])
+            point_set.add(involute_points_b[i])
 
         # Create the second spline.
-        spline2 = sketch.sketchCurves.sketchFittedSplines.add(pointSet)
+        spline_b = sketch.sketchCurves.sketchFittedSplines.add(point_set)
 
         # Draw the arc for the top of the tooth.
         midPoint = adsk.core.Point3D.create((0.5*tip_diameter), 0, 0)
-        # todo :rotate mid_point
-        midPoint = rotate_points(midPoint, 0.5*self.pitch_angle)
+        midPoint = rotate_points(midPoint, angle)
 
         sketch.sketchCurves.sketchArcs.addByThreePoints(
-            spline1.endSketchPoint, midPoint, spline2.endSketchPoint)
+            spline_a.endSketchPoint, midPoint, spline_b.endSketchPoint)
 
         # Check to see if involute goes down to the root or not.  If not, then
         # create lines to connect the involute to the root.
         if(base_diameter < root_diameter):
             sketch.sketchCurves.sketchLines.addByTwoPoints(
-                spline2.startSketchPoint, spline1.startSketchPoint)
+                spline_b.startSketchPoint, spline_a.startSketchPoint)
         else:
             rootPoint1 = adsk.core.Point3D.create(
                 (0.5*root_diameter - 0.001) * math.cos(curve1Angle[0]), (0.5*root_diameter) * math.sin(curve1Angle[0]), 0)
             line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(
-                rootPoint1, spline1.startSketchPoint)
+                rootPoint1, spline_a.startSketchPoint)
 
             rootPoint2 = adsk.core.Point3D.create(
                 (0.5*root_diameter - 0.001) * math.cos(curve2Angle[0]), (0.5*root_diameter) * math.sin(curve2Angle[0]), 0)
             line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(
-                rootPoint2, spline2.startSketchPoint)
+                rootPoint2, spline_b.startSketchPoint)
 
             baseLine = sketch.sketchCurves.sketchLines.addByTwoPoints(
                 line1.startSketchPoint, line2.startSketchPoint)
@@ -180,8 +179,8 @@ class ABENICS:
             # Make the lines tangent to the spline so the root fillet will behave correctly.
             line1.isFixed = True
             line2.isFixed = True
-            sketch.geometricConstraints.addTangent(spline1, line1)
-            sketch.geometricConstraints.addTangent(spline2, line2)
+            sketch.geometricConstraints.addTangent(spline_a, line1)
+            sketch.geometricConstraints.addTangent(spline_b, line2)
 
     def assign_values(self, **kwargs):
         pass
@@ -196,8 +195,8 @@ class ABENICS:
         addendum = 1.0 * self.module
         dedendum = 1.25 * self.module
 
-        rootDia = self.d_ball - 2 * dedendum
-        # rootDia = self.d_ball - 2.5*self.module
+        root_dia = self.d_ball - 2 * dedendum
+        # root_dia = self.d_ball - 2.5*self.module
 
         # Create a new component by creating an occurrence.
         occs = design.rootComponent.occurrences
@@ -224,14 +223,22 @@ class ABENICS:
         origin = adsk.core.Point3D.create(0, 0, 0)
         # Draw a root fan shape.
         baseSketch.sketchCurves.sketchArcs.addByCenterStartSweep(
-            origin, adsk.core.Point3D.create(0.5*rootDia, 0, 0), math.pi)
+            origin, adsk.core.Point3D.create(0.5*root_dia, 0, 0), math.pi)
         baseSketch.sketchCurves.sketchLines.addByTwoPoints(
-            adsk.core.Point3D.create(0.5*rootDia, 0, 0),
-            adsk.core.Point3D.create(-0.5*rootDia, 0, 0))
+            adsk.core.Point3D.create(0.5*root_dia, 0, 0),
+            adsk.core.Point3D.create(-0.5*root_dia, 0, 0))
 
-        self.draw_teeth(baseSketch,
-                        root_diameter=rootDia,
-                        tip_diameter=tip_diameter)
+        c = baseSketch.sketchCurves.sketchCircles.addByCenterRadius(
+            adsk.core.Point3D.create(0, 0, 0), 0.5*tip_diameter)
+        c.isConstruction = True
+
+        # draw tooth
+        for i in range(int(0.5*self.num_teeth_ball)):
+            angle = self.pitch_angle * i + 0.5*self.pitch_angle
+            self.draw_teeth(baseSketch,
+                            root_diameter=root_dia,
+                            tip_diameter=tip_diameter,
+                            angle=angle)
 
         baseSketch.isComputeDeferred = False
 
@@ -846,11 +853,13 @@ def rotate_points(points, angle, center=None):
         if center is not None:
             p.x -= center.x
             p.y -= center.y
-        p.x = p.x*cos_val - p.y*sin_val
-        p.y = p.x*sin_val + p.y*cos_val
+        x = p.x*cos_val - p.y*sin_val
+        y = p.x*sin_val + p.y*cos_val
         if center is not None:
-            p.x += center.x
-            p.y += center.y
+            x += center.x
+            y += center.y
+        p.x = x
+        p.y = y
         rotated_points.append(p)
 
     if len(rotated_points) == 1:
