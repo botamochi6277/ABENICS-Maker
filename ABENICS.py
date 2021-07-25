@@ -154,14 +154,7 @@ class ABENICS:
                         pitchPointAngle - backlashAngle)
 
         # Rotate the involute so the middle of the tooth lies on the x axis.
-        cosAngle = math.cos(rotateAngle)
-        sinAngle = math.sin(rotateAngle)
-        for i in range(0, involutePointCount):
-            newX = involute_points[i].x * cosAngle - \
-                involute_points[i].y * sinAngle
-            newY = involute_points[i].x * sinAngle + \
-                involute_points[i].y * cosAngle
-            involute_points[i] = adsk.core.Point3D.create(newX, newY, 0)
+        involute_points = rotate_points(involute_points, rotateAngle)
 
         # Create a new set of points with a negated y.  This effectively mirrors the original
         # points about the X axis.
@@ -813,8 +806,28 @@ def xy2polar(points):
     return distances, angles
 
 
-def rotate_points(points, center, angle):
-    pass
+def rotate_points(points, angle, center=None):
+
+    cos_val = math.cos(angle)
+    sin_val = math.sin(angle)
+
+    rotate_points = list()
+
+    for i in range(len(points)):
+        p = adsk.core.Point3D.create(0, 0, 0)
+        p.x = points[i].x
+        p.y = points[i].y
+        if center is not None:
+            p.x -= center.x
+            p.y -= center.y
+        p.x = p.x*cos_val - p.y*sin_val
+        p.y = p.x*sin_val + p.y*cos_val
+        if center is not None:
+            p.x += center.x
+            p.y += center.y
+        rotate_points.append(p)
+
+    return rotate_points
 
 
 def involutePoint(baseCircleRadius, distFromCenterToInvolutePoint):
