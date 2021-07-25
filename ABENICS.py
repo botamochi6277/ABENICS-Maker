@@ -84,10 +84,109 @@ class ABENICS:
 
         self.backlash = 1.0
 
-    def AssignValues(self, **kwargs):
+    def draw_teeth(self, sketch, root_diameter, tip_diameter, angle=0):
+        base_diameter = self.d_ball * math.cos(self.pressure_angle)
+
+        # Calculate points along the involute curve.
+        involute_point_count = 15  # resolution
+        involuteIntersectionRadius = 0.5 * base_diameter
+        involute_points_a = []
+        involute_points_a = get_involutePoints(
+            base_diameter, tip_diameter, num=involute_point_count)
+
+        # Get the point along the tooth that's at the pitch diameter and then
+        # calculate the angle to that point.
+        pitch_involute_point = involutePoint(
+            0.5*base_diameter, 0.5*self.d_ball)
+        pitch_point_angle = math.atan(
+            pitch_involute_point.y / pitch_involute_point.x)
+
+        # Determine the angle defined by the tooth thickness as measured at
+        # the pitch diameter circle.
+        # ! this is half circular pitch angle
+        tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_ball)
+
+        # Determine the angle needed for the specified backlash.
+        backlashAngle = (self.backlash / (0.5*self.d_ball)) * .25
+
+        # Determine the angle to rotate the curve.
+        rotate_angle = -((0.5*tooth_thickness_angle) +
+                         pitch_point_angle - backlashAngle)
+
+        # Rotate the involute so the middle of the tooth lies on the x axis.
+        involute_points_a = rotate_points(involute_points_a, rotate_angle)
+
+        # Create a new set of points with a negated y.  This effectively mirrors the original
+        # points about the X axis.
+        involute_points_b = []
+        for i in range(0, involute_point_count):
+            involute_points_b.append(adsk.core.Point3D.create(
+                involute_points_a[i].x, -involute_points_a[i].y, 0))
+
+        # rotate points by half pitch angle
+        involute_points_a = rotate_points(
+            involute_points_a, 0.5*self.pitch_angle)
+        involute_points_b = rotate_points(
+            involute_points_b, 0.5*self.pitch_angle)
+
+        curve1Dist, curve1Angle = xy2polar(involute_points_a)
+        curve2Dist, curve2Angle = xy2polar(involute_points_b)
+
+        sketch.isComputeDeferred = True
+
+        # Create and load an object collection with the points.
+        pointSet = adsk.core.ObjectCollection.create()
+        for i in range(0, involute_point_count):
+            pointSet.add(involute_points_a[i])
+
+        # Create the first spline.
+        spline1 = sketch.sketchCurves.sketchFittedSplines.add(pointSet)
+
+        # Add the involute points for the second spline to an ObjectCollection.
+        pointSet = adsk.core.ObjectCollection.create()
+        for i in range(0, involute_point_count):
+            pointSet.add(involute_points_b[i])
+
+        # Create the second spline.
+        spline2 = sketch.sketchCurves.sketchFittedSplines.add(pointSet)
+
+        # Draw the arc for the top of the tooth.
+        midPoint = adsk.core.Point3D.create((0.5*tip_diameter), 0, 0)
+        # todo :rotate mid_point
+        midPoint = rotate_points(midPoint, 0.5*self.pitch_angle)
+
+        sketch.sketchCurves.sketchArcs.addByThreePoints(
+            spline1.endSketchPoint, midPoint, spline2.endSketchPoint)
+
+        # Check to see if involute goes down to the root or not.  If not, then
+        # create lines to connect the involute to the root.
+        if(base_diameter < root_diameter):
+            sketch.sketchCurves.sketchLines.addByTwoPoints(
+                spline2.startSketchPoint, spline1.startSketchPoint)
+        else:
+            rootPoint1 = adsk.core.Point3D.create(
+                (0.5*root_diameter - 0.001) * math.cos(curve1Angle[0]), (0.5*root_diameter) * math.sin(curve1Angle[0]), 0)
+            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(
+                rootPoint1, spline1.startSketchPoint)
+
+            rootPoint2 = adsk.core.Point3D.create(
+                (0.5*root_diameter - 0.001) * math.cos(curve2Angle[0]), (0.5*root_diameter) * math.sin(curve2Angle[0]), 0)
+            line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(
+                rootPoint2, spline2.startSketchPoint)
+
+            baseLine = sketch.sketchCurves.sketchLines.addByTwoPoints(
+                line1.startSketchPoint, line2.startSketchPoint)
+
+            # Make the lines tangent to the spline so the root fillet will behave correctly.
+            line1.isFixed = True
+            line2.isFixed = True
+            sketch.geometricConstraints.addTangent(spline1, line1)
+            sketch.geometricConstraints.addTangent(spline2, line2)
+
+    def assign_values(self, **kwargs):
         pass
 
-    def DrawGear(self, design):
+    def draw_gear(self, design):
         # https://eow.alc.co.jp/search?q=dedendum
         # https://khkgears.net/new/gear_knowledge/abcs_of_gears-b/basic_gear_terminology_calculation.html
         # what is 20?
@@ -130,101 +229,9 @@ class ABENICS:
             adsk.core.Point3D.create(0.5*rootDia, 0, 0),
             adsk.core.Point3D.create(-0.5*rootDia, 0, 0))
 
-        # Calculate points along the involute curve.
-        involutePointCount = 15  # resolution
-        involuteIntersectionRadius = 0.5 * baseCircleDia
-        involute_points_a = []
-        involute_points_a = get_involutePoints(
-            baseCircleDia, tip_diameter, num=involutePointCount)
-
-        # Get the point along the tooth that's at the pitch diameter and then
-        # calculate the angle to that point.
-        pitchInvolutePoint = involutePoint(
-            0.5*baseCircleDia, 0.5*self.d_ball)
-        pitchPointAngle = math.atan(
-            pitchInvolutePoint.y / pitchInvolutePoint.x)
-
-        # Determine the angle defined by the tooth thickness as measured at
-        # the pitch diameter circle.
-        # ! this is half circular pitch angle
-        toothThicknessAngle = (2 * math.pi) / (2 * self.num_teeth_ball)
-
-        # Determine the angle needed for the specified backlash.
-        backlashAngle = (self.backlash / (0.5*self.d_ball)) * .25
-
-        # Determine the angle to rotate the curve.
-        rotateAngle = -((0.5*toothThicknessAngle) +
-                        pitchPointAngle - backlashAngle)
-
-        # Rotate the involute so the middle of the tooth lies on the x axis.
-        involute_points_a = rotate_points(involute_points_a, rotateAngle)
-
-        # Create a new set of points with a negated y.  This effectively mirrors the original
-        # points about the X axis.
-        involute_points_b = []
-        for i in range(0, involutePointCount):
-            involute_points_b.append(adsk.core.Point3D.create(
-                involute_points_a[i].x, -involute_points_a[i].y, 0))
-
-        # rotate points by half pitch angle
-        involute_points_a = rotate_points(
-            involute_points_a, 0.5*self.pitch_angle)
-        involute_points_b = rotate_points(
-            involute_points_b, 0.5*self.pitch_angle)
-
-        curve1Dist, curve1Angle = xy2polar(involute_points_a)
-        curve2Dist, curve2Angle = xy2polar(involute_points_b)
-
-        baseSketch.isComputeDeferred = True
-
-        # Create and load an object collection with the points.
-        pointSet = adsk.core.ObjectCollection.create()
-        for i in range(0, involutePointCount):
-            pointSet.add(involute_points_a[i])
-
-        # Create the first spline.
-        spline1 = baseSketch.sketchCurves.sketchFittedSplines.add(pointSet)
-
-        # Add the involute points for the second spline to an ObjectCollection.
-        pointSet = adsk.core.ObjectCollection.create()
-        for i in range(0, involutePointCount):
-            pointSet.add(involute_points_b[i])
-
-        # Create the second spline.
-        spline2 = baseSketch.sketchCurves.sketchFittedSplines.add(pointSet)
-
-        # Draw the arc for the top of the tooth.
-        midPoint = adsk.core.Point3D.create((0.5*tip_diameter), 0, 0)
-        # todo :rotate mid_point
-        midPoint = rotate_points(midPoint, 0.5*self.pitch_angle)
-
-        baseSketch.sketchCurves.sketchArcs.addByThreePoints(
-            spline1.endSketchPoint, midPoint, spline2.endSketchPoint)
-
-        # Check to see if involute goes down to the root or not.  If not, then
-        # create lines to connect the involute to the root.
-        if(baseCircleDia < rootDia):
-            baseSketch.sketchCurves.sketchLines.addByTwoPoints(
-                spline2.startSketchPoint, spline1.startSketchPoint)
-        else:
-            rootPoint1 = adsk.core.Point3D.create(
-                (0.5*rootDia - 0.001) * math.cos(curve1Angle[0]), (0.5*rootDia) * math.sin(curve1Angle[0]), 0)
-            line1 = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
-                rootPoint1, spline1.startSketchPoint)
-
-            rootPoint2 = adsk.core.Point3D.create(
-                (0.5*rootDia - 0.001) * math.cos(curve2Angle[0]), (0.5*rootDia) * math.sin(curve2Angle[0]), 0)
-            line2 = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
-                rootPoint2, spline2.startSketchPoint)
-
-            baseLine = baseSketch.sketchCurves.sketchLines.addByTwoPoints(
-                line1.startSketchPoint, line2.startSketchPoint)
-
-            # Make the lines tangent to the spline so the root fillet will behave correctly.
-            line1.isFixed = True
-            line2.isFixed = True
-            baseSketch.geometricConstraints.addTangent(spline1, line1)
-            baseSketch.geometricConstraints.addTangent(spline2, line2)
+        self.draw_teeth(baseSketch,
+                        root_diameter=rootDia,
+                        tip_diameter=tip_diameter)
 
         baseSketch.isComputeDeferred = False
 
@@ -576,12 +583,12 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             backlash = _backlash.value
 
             # Create the gear.
-            # gearComp = drawGear(des, diaPitch, numTeeth, thickness,
+            # gearComp = draw_gear(des, diaPitch, numTeeth, thickness,
             #                     rootFilletRad, pressureAngle, backlash, holeDiam)
 
             abenics = ABENICS()
 
-            abenics.DrawGear(design=des)
+            abenics.draw_gear(design=des)
             gearComp = abenics.ball_comp
 
             if gearComp:
