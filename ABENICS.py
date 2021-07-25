@@ -664,6 +664,18 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.draw_mp_sketch(mp_sketch)
             abenics.extrude_mp(mp_sketch, thickness)
 
+            # combine
+            combines = abenics.mp_comp.features.combineFeatures
+            tool_bodies = adsk.core.ObjectCollection.create()
+            tool_bodies.add(abenics.sh_comp.bRepBodies.item(0))
+            combine_input = combines.createInput(
+                targetBody=abenics.mp_comp.bRepBodies.item(0),
+                toolBodies=tool_bodies
+            )
+            combine_input.isKeepToolBodies = True
+            combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+            combines.add(combine_input)
+
             gearComp = abenics.sh_comp
 
             if gearComp:
