@@ -202,9 +202,7 @@ class ABENICS:
         occs = design.rootComponent.occurrences
         mat = adsk.core.Matrix3D.create()
         newOcc = occs.addNewComponent(mat)
-        newComp = adsk.fusion.Component.cast(newOcc.component)
-
-        self.ball_comp = newComp
+        self.ball_comp = adsk.fusion.Component.cast(newOcc.component)
 
         baseCircleDia = self.d_ball * math.cos(self.pressure_angle)
 
@@ -216,8 +214,8 @@ class ABENICS:
         # ---
 
         # Create a new sketch.
-        sketches = newComp.sketches
-        xyPlane = newComp.xYConstructionPlane
+        sketches = self.ball_comp.sketches
+        xyPlane = self.ball_comp.xYConstructionPlane
         baseSketch = sketches.add(xyPlane)
 
         origin = adsk.core.Point3D.create(0, 0, 0)
@@ -243,6 +241,18 @@ class ABENICS:
         baseSketch.isComputeDeferred = False
 
         return baseSketch, l
+
+    def revolve_ballgear(self, sk, ax_line):
+        # revolve profiles
+        revolves = self.ball_comp.features.revolveFeatures
+        profile_set = adsk.core.ObjectCollection.create()
+        for i in range(len(sk.profiles)):
+            profile_set.add(sk.profiles.item(i))
+        revInput = revolves.createInput(
+            profile_set, ax_line, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        angle = adsk.core.ValueInput.createByReal(2*math.pi)
+        revInput.setAngleExtent(False, angle)
+        ext = revolves.add(revInput)
 
     def Create():
         # Draw Spurgear for a ball gear
@@ -598,18 +608,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics = ABENICS()
 
             sk, ax_line = abenics.draw_gear(design=des)
-            # revolve profiles
-            revolves = abenics.ball_comp.features.revolveFeatures
-            profile_set = adsk.core.ObjectCollection.create()
-            for i in range(len(sk.profiles)):
-                profile_set.add(sk.profiles.item(i))
-            revInput = revolves.createInput(
-                profile_set, ax_line, adsk.fusion.FeatureOperations.NewComponentFeatureOperation)
-            angle = adsk.core.ValueInput.createByReal(2*math.pi)
-            revInput.setAngleExtent(False, angle)
-
-            # Create the extrusion.
-            ext = revolves.add(revInput)
+            abenics.revolve_ballgear(sk, ax_line)
 
             gearComp = abenics.ball_comp
 
