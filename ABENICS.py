@@ -289,6 +289,52 @@ class ABENICS:
         # extInput.setDistanceExtent(False, distance)
         extInput.setSymmetricExtent(distance, True)
         mp_extrude = extrudes.add(extInput)
+        return mp_extrude
+
+    def engrave(self):
+        combines = self.mp_comp.features.combineFeatures
+        tool_bodies = adsk.core.ObjectCollection.create()
+        tool_bodies.add(self.sh_comp.bRepBodies.item(0))
+        combine_input = combines.createInput(
+            targetBody=self.mp_comp.bRepBodies.item(0),
+            toolBodies=tool_bodies
+        )
+        combine_input.isKeepToolBodies = True
+        combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+        combines.add(combine_input)
+
+    def rotate_gears(self, angle):
+        z_up = adsk.core.Vector3D.create(0, 0, 1)
+        # rotate sh gear
+        moves = self.sh_comp.features.moveFeatures
+        bodies = adsk.core.ObjectCollection.create()
+        bodies.add(self.sh_comp.bRepBodies.item(0))
+
+        tf = adsk.core.Matrix3D.create()
+        tf.setToRotation(
+            angle=angle,
+            axis=z_up,
+            origin=adsk.core.Point3D.create(0, 0, 0)
+        )
+
+        move_input = moves.createInput(bodies, tf)
+        move_sh = moves.add(move_input)
+
+        # rotate mp gear
+        moves = self.mp_comp.features.moveFeatures
+        bodies = adsk.core.ObjectCollection.create()
+        bodies.add(self.mp_comp.bRepBodies.item(0))
+        tf = adsk.core.Matrix3D.create()
+        x = 0.5 * self.d_ball + 0.5*self.d_pinion
+        tf.setToRotation(
+            angle=-angle,
+            axis=z_up,
+            origin=adsk.core.Point3D.create(x, 0, 0)
+        )
+        move_input = moves.createInput(bodies, tf)
+        move_mp = moves.add(move_input)
+
+        return move_sh, move_mp
 
     def Create():
         # Draw Spurgear for a ball gear
@@ -665,35 +711,9 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.draw_mp_sketch(mp_sketch)
             abenics.extrude_mp(mp_sketch, thickness)
 
-            # combine
-            combines = abenics.mp_comp.features.combineFeatures
-            tool_bodies = adsk.core.ObjectCollection.create()
-            tool_bodies.add(abenics.sh_comp.bRepBodies.item(0))
-            combine_input = combines.createInput(
-                targetBody=abenics.mp_comp.bRepBodies.item(0),
-                toolBodies=tool_bodies
-            )
-            combine_input.isKeepToolBodies = True
-            combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-            combines.add(combine_input)
-
-            # rotate bodies
-            moves = abenics.mp_comp.features.moveFeatures
-            bodies = adsk.core.ObjectCollection.create()
-            bodies.add(abenics.mp_comp.bRepBodies.item(0))
-            tf = adsk.core.Matrix3D.create()
-            tf = tf.setToRotation(
-                angle=math.pi/180,
-                axis=adsk.core.Vector3D.create(0, 0, 1),
-                origin=adsk.core.Point3D.create(0, 0, 0)
-            )
-
-            vector = adsk.core.Vector3D.create(0.0, 10.0, 0.0)
-            transform = adsk.core.Matrix3D.create()
-            transform.translation = vector
-
-            move_input = moves.createInput(bodies, transform)
-            moves.add(move_input)
+            for i in range(16):
+                abenics.engrave()
+                abenics.rotate_gears(math.pi/180*(i+1))
 
             gearComp = abenics.sh_comp
 
