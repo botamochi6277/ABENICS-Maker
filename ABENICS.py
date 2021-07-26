@@ -14,6 +14,7 @@ Note:
     Default length unit of Fusion360 Script is cm.
 
     IEEE Paper of ABENICS: https://ieeexplore.ieee.org/document/9415699
+    Video :https://www.youtube.com/watch?v=hhDdfiRCQS4
     Gear: https://en.wikipedia.org/wiki/Gear
 """
 
@@ -71,17 +72,17 @@ class ABENICS:
     """
 
     def __init__(self, design, **kwargs) -> None:
-        self.module = 1
+        self.module = 1.0
         self.pressure_angle = 20.0 * math.pi/180.0  # [rad]
 
-        self.d_ball = 40.0  # cm
-        self.num_teeth_ball = int(self.d_ball / self.module)
+        self.d_ball = 8.0  # cm
+        self.num_teeth_ball = int(10*self.d_ball / self.module)
         self.pitch_angle = 2.0*math.pi/self.num_teeth_ball
 
-        self.gear_ratio = 4
+        self.gear_ratio = 2
 
         self.d_pinion = self.d_ball/self.gear_ratio
-        self.num_teeth_pinion = int(self.d_pinion/self.module)
+        self.num_teeth_pinion = int(self.num_teeth_ball/self.gear_ratio)
         self.d_hole_pinion = 0.4  # cm
 
         self.backlash = 0.1  # cm
@@ -209,6 +210,7 @@ class ABENICS:
         # h = 2.25 * self.module
         addendum = 1.0 * self.module
         dedendum = 1.25 * self.module
+        dedendum *= 0.1  # mm->cm
 
         root_dia = self.d_ball - 2 * dedendum
         # root_dia = self.d_ball - 2.5*self.module
@@ -217,7 +219,7 @@ class ABENICS:
 
         # tip diameter
         # outsideDia = (self.num_teeth_ball + 2) / self.d_ball
-        tip_diameter = self.d_ball + 2 * self.module
+        tip_diameter = self.d_ball + 2 * self.module * 0.1
         # tip_diameter = self.d_ball + 2 * addendum
 
         origin = adsk.core.Point3D.create(0, 0, 0)
@@ -301,9 +303,14 @@ class ABENICS:
         )
         combine_input.isKeepToolBodies = True
         combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        combines.add(combine_input)
+        return combines.add(combine_input)
 
     def rotate_gears(self, angle):
+        """rotate gear bodies
+
+        Args:
+            angle (float): 0--2*math.pi
+        """
         z_up = adsk.core.Vector3D.create(0, 0, 1)
         # rotate sh gear
         moves = self.sh_comp.features.moveFeatures
@@ -312,7 +319,7 @@ class ABENICS:
 
         tf = adsk.core.Matrix3D.create()
         tf.setToRotation(
-            angle=angle,
+            angle=angle/self.gear_ratio,
             axis=z_up,
             origin=adsk.core.Point3D.create(0, 0, 0)
         )
@@ -520,7 +527,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             if rootFilletRadAttrib:
                 rootFilletRad = rootFilletRadAttrib.value
 
-            thickness = str(0.5 * 2.54)
+            thickness = str(0.5 * 40)
             thicknessAttrib = des.attributes.itemByName(
                 _app_name, 'thickness')
             if thicknessAttrib:
@@ -693,15 +700,11 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             # Create a new sketch.
             sketches = abenics.sh_comp.sketches
             xyPlane = abenics.sh_comp.xYConstructionPlane
-            # SH Gear
+
+            # SH Gear 1
             baseSketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(baseSketch)
             abenics.revolve_ballgear(sk, ax_line)
-
-            i_sketch = sketches.add(xyPlane)
-            sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
-            rev_feature = abenics.revolve_ballgear(
-                sk, ax_line, operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation)
 
             # MP Gear
             abenics.make_mp_comp()
@@ -711,9 +714,30 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.draw_mp_sketch(mp_sketch)
             abenics.extrude_mp(mp_sketch, thickness)
 
-            for i in range(16):
-                abenics.engrave()
-                abenics.rotate_gears(math.pi/180*(i+1))
+            num_steps = 36
+            delta_angle = (2*math.pi) / num_steps
+            for i in range(num_steps):
+                timelineGroups = des.timeline.timelineGroups
+                e = abenics.engrave()
+                sh, mp = abenics.rotate_gears(delta_angle)
+                timelineGroup = timelineGroups.add(
+                    e.timelineObject.index, mp.timelineObject.index)
+                if i == 0:
+                    first_group = timelineGroup
+                if i == (num_steps-1):
+                    last_group = timelineGroup
+            try:
+                timelineGroup = timelineGroups.add(
+                    first_group.index,
+                    last_group.index)
+            except:
+                pass
+
+            # SH Gear 2
+            i_sketch = sketches.add(xyPlane)
+            sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
+            rev_feature = abenics.revolve_ballgear(
+                sk, ax_line, operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation)
 
             gearComp = abenics.sh_comp
 
