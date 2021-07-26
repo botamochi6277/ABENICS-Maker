@@ -99,7 +99,7 @@ class ABENICS:
         newOcc = self.root_occurrences.addNewComponent(mat)
         self.mp_comp = adsk.fusion.Component.cast(newOcc.component)
 
-    def draw_teeth(self, sketch, root_diameter, tip_diameter, angle=0):
+    def draw_tooth(self, sketch, root_diameter, tip_diameter, angle=0):
         base_diameter = self.d_ball * math.cos(self.pressure_angle)
 
         # Calculate points along the involute curve.
@@ -240,7 +240,7 @@ class ABENICS:
         # draw tooth
         for i in range(int(0.5*self.num_teeth_ball)):
             angle = self.pitch_angle * i + 0.5*self.pitch_angle + axis_angle
-            self.draw_teeth(sketch,
+            self.draw_tooth(sketch,
                             root_diameter=root_dia,
                             tip_diameter=tip_diameter,
                             angle=angle)
@@ -259,7 +259,8 @@ class ABENICS:
             profile_set, ax_line, operation)
         angle = adsk.core.ValueInput.createByReal(2*math.pi)
         revInput.setAngleExtent(False, angle)
-        ext = revolves.add(revInput)
+        rev = revolves.add(revInput)
+        return rev
 
     def draw_mp_sketch(self, sketch):
         tip_diameter = self.d_pinion + 2 * self.module
@@ -653,7 +654,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
 
             i_sketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
-            abenics.revolve_ballgear(
+            rev_feature = abenics.revolve_ballgear(
                 sk, ax_line, operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation)
 
             # MP Gear
@@ -675,6 +676,24 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             combine_input.isKeepToolBodies = True
             combine_input.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
             combines.add(combine_input)
+
+            # rotate bodies
+            moves = abenics.mp_comp.features.moveFeatures
+            bodies = adsk.core.ObjectCollection.create()
+            bodies.add(abenics.mp_comp.bRepBodies.item(0))
+            tf = adsk.core.Matrix3D.create()
+            tf = tf.setToRotation(
+                angle=math.pi/180,
+                axis=adsk.core.Vector3D.create(0, 0, 1),
+                origin=adsk.core.Point3D.create(0, 0, 0)
+            )
+
+            vector = adsk.core.Vector3D.create(0.0, 10.0, 0.0)
+            transform = adsk.core.Matrix3D.create()
+            transform.translation = vector
+
+            move_input = moves.createInput(bodies, transform)
+            moves.add(move_input)
 
             gearComp = abenics.sh_comp
 
