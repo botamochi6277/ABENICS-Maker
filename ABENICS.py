@@ -32,6 +32,7 @@ _units = ''
 # Command inputs
 _imgInputEnglish = adsk.core.ImageCommandInput.cast(None)
 _imgInputMetric = adsk.core.ImageCommandInput.cast(None)
+# adsk standard system
 _standard = adsk.core.DropDownCommandInput.cast(None)
 _pressureAngle = adsk.core.DropDownCommandInput.cast(None)
 _pressureAngleCustom = adsk.core.ValueCommandInput.cast(None)
@@ -251,7 +252,9 @@ class ABENICS:
 
         return sketch, l
 
-    def revolve_ballgear(self, sk, ax_line, operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation):
+    def revolve_ballgear(self, sk, ax_line,
+                         operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                         bodies=None):
         # revolve profiles
         revolves = self.sh_comp.features.revolveFeatures
         profile_set = adsk.core.ObjectCollection.create()
@@ -259,13 +262,15 @@ class ABENICS:
             profile_set.add(sk.profiles.item(i))
         revInput = revolves.createInput(
             profile_set, ax_line, operation)
+        if bodies is not None:
+            revInput.participantBodies = bodies
         angle = adsk.core.ValueInput.createByReal(2*math.pi)
         revInput.setAngleExtent(False, angle)
         rev = revolves.add(revInput)
         return rev
 
     def draw_mp_sketch(self, sketch):
-        tip_diameter = self.d_pinion + 2 * self.module
+        tip_diameter = self.d_pinion + 2 * self.module * 0.1
 
         center = adsk.core.Point3D.create(
             0.5*self.d_pinion+0.5*self.d_ball, 0, 0)
@@ -516,7 +521,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             if backlashAttrib:
                 backlash = backlashAttrib.value
 
-            numTeeth = '24'
+            numTeeth = '40'
             numTeethAttrib = des.attributes.itemByName(_app_name, 'numTeeth')
             if numTeethAttrib:
                 numTeeth = numTeethAttrib.value
@@ -724,9 +729,11 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                     e.timelineObject.index, mp.timelineObject.index)
                 if i == 0:
                     first_group = timelineGroup
-                if i == (num_steps-1):
-                    last_group = timelineGroup
+
+            last_group = timelineGroup
+
             try:
+                timelineGroups = des.timeline.timelineGroups
                 timelineGroup = timelineGroups.add(
                     first_group.index,
                     last_group.index)
@@ -734,11 +741,17 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                 pass
 
             # SH Gear 2
+            sketches = abenics.sh_comp.sketches
+            xyPlane = abenics.sh_comp.xYConstructionPlane
             i_sketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
+            # bodies = adsk.core.ObjectCollection.create()
+            # bodies.add(abenics.sh_comp.bRepBodies.item(0))
             rev_feature = abenics.revolve_ballgear(
-                sk, ax_line, operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation)
-
+                sk, ax_line,
+                operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation,
+                bodies=[abenics.sh_comp.bRepBodies.item(0)])
+            # rev_feature.participantBodies
             gearComp = abenics.sh_comp
 
             if gearComp:
