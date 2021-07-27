@@ -34,17 +34,25 @@ _imgInputEnglish = adsk.core.ImageCommandInput.cast(None)
 _imgInputMetric = adsk.core.ImageCommandInput.cast(None)
 # adsk standard system
 _standard = adsk.core.DropDownCommandInput.cast(None)
+# common
 _pressureAngle = adsk.core.DropDownCommandInput.cast(None)
 _pressureAngleCustom = adsk.core.ValueCommandInput.cast(None)
 _backlash = adsk.core.ValueCommandInput.cast(None)
 _diaPitch = adsk.core.ValueCommandInput.cast(None)
 _module = adsk.core.ValueCommandInput.cast(None)
 _rootFilletRad = adsk.core.ValueCommandInput.cast(None)
-_thickness = adsk.core.ValueCommandInput.cast(None)
-_holeDiam = adsk.core.ValueCommandInput.cast(None)
+
+# SH Gear
 _pitch_diameter_sh = adsk.core.ValueCommandInput.cast(None)
 _num_teeth_sh = adsk.core.StringValueCommandInput.cast(None)
 _gear_ratio = adsk.core.StringValueCommandInput.cast(None)
+# MP Gear
+_thickness = adsk.core.ValueCommandInput.cast(None)
+_holeDiam = adsk.core.ValueCommandInput.cast(None)
+# reference
+_pitch_diameter_mp = adsk.core.TextBoxCommandInput.cast(None)
+
+
 _errMessage = adsk.core.TextBoxCommandInput.cast(None)
 
 _handlers = []
@@ -639,11 +647,15 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             _pitch_diameter_sh = inputs.addValueInput(
                 'pitch_diameter_sh', 'Pitch Diameter of SH-Gear', _units, adsk.core.ValueInput.createByReal(float(pitch_diameter_sh)))
 
-            _num_teeth_sh = inputs.addValueInput(
-                'num_teeth_sh', 'Num Teeth of SH-Gear', '', adsk.core.ValueInput.createByReal(int(num_teeth_sh)))
+            _num_teeth_sh = inputs.addStringValueInput(
+                'num_teeth_sh', 'Num Teeth of SH-Gear', num_teeth_sh)
 
             _gear_ratio = inputs.addValueInput(
                 'gear_ratio', 'Gear Ratio', '', adsk.core.ValueInput.createByReal(float(gear_ratio)))
+
+            global _pitch_diameter_mp
+            _pitch_diameter_mp = inputs.addTextBoxCommandInput(
+                'pitch_diameter_mp', 'MP-Gear Diameter', '', 1, True)
 
             _errMessage = inputs.addTextBoxCommandInput(
                 'errMessage', '', '', 2, True)
@@ -847,6 +859,10 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 _holeDiam.value = _holeDiam.value
                 _holeDiam.unitType = _units
 
+            des = adsk.fusion.Design.cast(_app.activeProduct)
+            d = _pitch_diameter_sh.value/_gear_ratio.value
+            _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
+                d, _units, True)
             # Update the pitch diameter value.
             # diaPitch = None
             # if _standard.selectedItem.name == 'English':
@@ -893,14 +909,14 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
 
             _errMessage.text = ''
 
-            # Verify that at lesat 4 teath are specified.
-            # if not _num_teeth_sh.value.isdigit():
-            #     _errMessage.text = 'The number of teeth must be a whole number.'
-            #     eventArgs.areInputsValid = False
-            #     return
-            # else:
-            #     numTeeth = int(_num_teeth_sh.value)
-            numTeeth = int(_num_teeth_sh.value)
+            # Verify that at least 4 teeth are specified.
+            if not _num_teeth_sh.value.isdigit():
+                _errMessage.text = 'The number of teeth must be a whole number.'
+                eventArgs.areInputsValid = False
+                return
+            else:
+                numTeeth = int(_num_teeth_sh.value)
+
             if numTeeth < 4:
                 _errMessage.text = 'The number of teeth must be 4 or more.'
                 eventArgs.areInputsValid = False
