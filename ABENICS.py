@@ -132,25 +132,35 @@ class ABENICS:
 
     def __init__(self, design,
                  module=1.0, pressure_angle=20.0 * math.pi/180.0,
-                 num_teeth_sh=40, gear_ratio=2, thickness=4.0, hole_diameter=0.4) -> None:
+                 num_teeth_sh=40, gear_ratio=2, thickness=4.0, hole_diameter=0.4, backlash=0) -> None:
         # common parameters
         self.module = module
         self.pressure_angle = pressure_angle  # [rad]
-        self.backlash = 0.1  # cm
+        self.backlash = backlash
         self.gear_ratio = gear_ratio
 
         self.num_teeth_sh = num_teeth_sh
 
-        self.diameter_sh = 10*self.module*self.num_teeth_sh  # cm
+        self.diameter_sh = 0.1*(self.module*self.num_teeth_sh) # mm->cm
         self.pitch_angle = 2.0*math.pi/self.num_teeth_sh
 
         self.diameter_mp = self.diameter_sh/self.gear_ratio
         self.num_teeth_mp = int(self.num_teeth_sh/self.gear_ratio)
-        self.diameter_hole_mp = hole_diameter  # cm
+        self.diameter_hole_mp = hole_diameter
         self.thickness_mp = thickness
 
         # Create a new component by creating an occurrence.
         self.root_occurrences = design.rootComponent.occurrences
+    
+    def print(self):
+        print('module : {:0.2f}'.format(self.module))
+        print('pressure_angle : {:0.2f} deg'.format(self.pressure_angle*(180/math.pi)))
+        print('backlash : {:0.2f} mm'.format(10*self.backlash))
+        print('gear_ratio : {:0.2f}'.format(self.gear_ratio))
+        print('num_teeth_sh : {:0.2f}'.format(self.num_teeth_sh))
+        print('diameter_sh : {:0.2f} mm'.format(10*self.diameter_sh))
+        print('diameter_mp : {:0.2f} mm'.format(10*self.diameter_mp))
+
 
     def make_sh_comp(self):
         mat = adsk.core.Matrix3D.create()
@@ -297,6 +307,7 @@ class ABENICS:
             arc_start,
             arc_end)
 
+        # draw tip circle
         c = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             adsk.core.Point3D.create(0, 0, 0), 0.5*tip_diameter)
         c.isConstruction = True
@@ -734,15 +745,21 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                     pressureAngle = 25.0 * (math.pi/180)
 
             rootFilletRad = _rootFilletRad.value
-            thickness = _thickness.value
-            holeDiam = _holeDiam.value
-            backlash = _backlash.value
+            num_teeth = int(_num_teeth_sh.value)
 
             # Create the gear.
             # gearComp = drawGear(des, diaPitch, numTeeth, thickness,
             #                     rootFilletRad, pressureAngle, backlash, holeDiam)
 
-            abenics = ABENICS(design=des)
+            abenics = ABENICS(design=des,
+                              module=_module.value,
+                              pressure_angle=pressureAngle,
+                              num_teeth_sh=num_teeth,
+                              gear_ratio=_gear_ratio.value,
+                              thickness=_thickness.value,
+                              hole_diameter=_holeDiam.value,
+                              backlash=_backlash.value)
+            abenics.print()
 
             abenics.make_sh_comp()
             # Create a new sketch.
@@ -760,7 +777,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             xyPlane = abenics.mp_comp.xYConstructionPlane
             mp_sketch = sketches.add(xyPlane)
             abenics.draw_mp_sketch(mp_sketch)
-            abenics.extrude_mp(mp_sketch, thickness)
+            abenics.extrude_mp(mp_sketch, abenics.thickness_mp)
 
             # todo : add num_steps input
             num_steps = 36
@@ -813,7 +830,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
 
                 desc += 'Backlash: ' + \
                     des.unitsManager.formatInternalValue(
-                        backlash, _units, True)
+                        abenics.backlash, _units, True)
                 gearComp.description = desc
 
             abenics.sh_comp.description = 'SH_Gear'
@@ -845,10 +862,12 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             d_sh = _module.value*int(_num_teeth_sh.value)
             d_mp = d_sh/(_gear_ratio.value+1.0e-9)
             d_mp = round(d_mp, 2)
-            _pitch_diameter_sh.text = des.unitsManager.formatInternalValue(
-                d_sh, _units, True)
-            _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
-                d_mp, _units, True)
+            _pitch_diameter_sh.text = '{:0.2f} mm'.format(d_sh)
+            _pitch_diameter_mp.text = '{:0.2f} mm'.format(d_mp)
+            # _pitch_diameter_sh.text = des.unitsManager.formatInternalValue(
+            #     0.1*d_sh, _units, True)
+            # _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
+            #     0.1*d_mp, _units, True)
 
             if changedInput.id == 'pressureAngle':
                 if _pressureAngle.selectedItem.name == 'Custom':
