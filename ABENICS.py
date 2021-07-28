@@ -37,19 +37,20 @@ _standard = adsk.core.DropDownCommandInput.cast(None)
 # common gear parameters
 _pressureAngle = adsk.core.DropDownCommandInput.cast(None)
 _pressureAngleCustom = adsk.core.ValueCommandInput.cast(None)
-_backlash = adsk.core.ValueCommandInput.cast(None)
-_diaPitch = adsk.core.ValueCommandInput.cast(None)
 _module = adsk.core.ValueCommandInput.cast(None)
 _rootFilletRad = adsk.core.ValueCommandInput.cast(None)
+_backlash = adsk.core.ValueCommandInput.cast(None)
+_diaPitch = adsk.core.ValueCommandInput.cast(None)
+_gear_ratio = adsk.core.StringValueCommandInput.cast(None)
 
 # SH Gear
-_pitch_diameter_sh = adsk.core.ValueCommandInput.cast(None)
 _num_teeth_sh = adsk.core.StringValueCommandInput.cast(None)
-_gear_ratio = adsk.core.StringValueCommandInput.cast(None)
 # MP Gear
 _thickness = adsk.core.ValueCommandInput.cast(None)
 _holeDiam = adsk.core.ValueCommandInput.cast(None)
+
 # reference
+_pitch_diameter_sh = adsk.core.TextBoxCommandInput.cast(None)
 _pitch_diameter_mp = adsk.core.TextBoxCommandInput.cast(None)
 
 
@@ -63,9 +64,9 @@ _app_name = 'ABENICS'
 
 def defineCommandDialog(inputs, standard, pressureAngle):
     global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _pitch, _module, _numTeeth, _rootFilletRad, _thickness, _holeDiam, _pitchDiam, _backlash, _imgInputEnglish, _imgInputMetric, _errMessage
-    _imgInputEnglish = inputs.addImageCommandInput(
-        'gearImageEnglish', '', 'Resources/GearEnglish.png')
-    _imgInputEnglish.isFullWidth = True
+    # _imgInputEnglish = inputs.addImageCommandInput(
+    #     'gearImageEnglish', '', 'Resources/GearEnglish.png')
+    # _imgInputEnglish.isFullWidth = True
 
     _imgInputMetric = inputs.addImageCommandInput(
         'gearImageMetric', '', 'Resources/GearMetric.png')
@@ -73,14 +74,14 @@ def defineCommandDialog(inputs, standard, pressureAngle):
 
     _standard = inputs.addDropDownCommandInput(
         'standard', 'Standard', adsk.core.DropDownStyles.TextListDropDownStyle)
-    if standard == "English":
-        _standard.listItems.add('English', True)
-        _standard.listItems.add('Metric', False)
-        _imgInputMetric.isVisible = False
-    else:
-        _standard.listItems.add('English', False)
-        _standard.listItems.add('Metric', True)
-        _imgInputEnglish.isVisible = False
+    # if standard == "English":
+    #     _standard.listItems.add('English', True)
+    #     _standard.listItems.add('Metric', False)
+    #     _imgInputMetric.isVisible = False
+    # else:
+    _standard.listItems.add('English', False)
+    _standard.listItems.add('Metric', True)
+    _imgInputEnglish.isVisible = False
 
     _pressureAngle = inputs.addDropDownCommandInput(
         'pressureAngle', 'Pressure Angle', adsk.core.DropDownStyles.TextListDropDownStyle)
@@ -525,6 +526,10 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
         super().__init__()
 
     def notify(self, args):
+        """notify command information
+
+        system call this method just after executing this script
+        """
         try:
             eventArgs = adsk.core.CommandCreatedEventArgs.cast(args)
 
@@ -539,24 +544,24 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             # Determine whether to use inches or millimeters as the initial default.
             global _units
-            if defaultUnits == 'in' or defaultUnits == 'ft':
-                _units = 'in'
-            else:
-                _units = 'mm'
+            # if defaultUnits == 'in' or defaultUnits == 'ft':
+            #     _units = 'in'
+            # else:
+            _units = 'mm'
 
             # Define the default values and get the previous values from the attributes.
-            if _units == 'in':
-                standard = 'English'
-            else:
-                standard = 'Metric'
+            # if _units == 'in':
+            #     standard = 'English'
+            # else:
+            standard = 'Metric'
             standardAttrib = des.attributes.itemByName(_app_name, 'standard')
             if standardAttrib:
                 standard = standardAttrib.value
 
-            if standard == 'English':
-                _units = 'in'
-            else:
-                _units = 'mm'
+            # if standard == 'English':
+            #     _units = 'in'
+            # else:
+            _units = 'mm'
 
             pressureAngle = '20 deg'  # initial value
             pressureAngleAttrib = des.attributes.itemByName(
@@ -580,7 +585,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             if backlashAttrib:
                 backlash = backlashAttrib.value
 
-            rootFilletRad = str(.0625 * 2.54)
+            rootFilletRad = str(0)
             rootFilletRadAttrib = des.attributes.itemByName(
                 _app_name, 'rootFilletRad')
             if rootFilletRadAttrib:
@@ -649,6 +654,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             _gear_ratio = inputs.addValueInput(
                 'gear_ratio', 'Gear Ratio', '', adsk.core.ValueInput.createByReal(float(gear_ratio)))
 
+            # dependant variables
             global _pitch_diameter_sh, _pitch_diameter_mp
             _pitch_diameter_sh = inputs.addTextBoxCommandInput(
                 'pitch_diameter_sh', 'SP-Gear Diameter', '', 1, True)
@@ -671,8 +677,8 @@ def SaveValueAsAttributes(attribs):
     Args:
         attribs : attributes, adsk.fusion.Design.cast(_app.activeProduct).attributes
     """
-    if _standard.selectedItem.name == 'English':
-        diaPitch = _module.value*2.54
+    # if _standard.selectedItem.name == 'English':
+    #     diaPitch = _module.value*2.54
     # elif _standard.selectedItem.name == 'Metric':
     #     diaPitch = 25.4 / _module.value
 
@@ -681,15 +687,17 @@ def SaveValueAsAttributes(attribs):
                 _pressureAngle.selectedItem.name)
     attribs.add(_app_name, 'pressureAngleCustom',
                 str(_pressureAngleCustom.value))
-
     attribs.add(_app_name, 'module', str(_module.value))
-
     attribs.add(_app_name, 'rootFilletRad', str(_rootFilletRad.value))
+    attribs.add(_app_name, 'backlash', str(_backlash.value))
+    attribs.add(_app_name, 'gear_ratio', str(_gear_ratio.value))
+
+    # SH Gear
+    attribs.add(_app_name, 'num_teeth_sh', str(_num_teeth_sh.value))
+
+    # MP Gear
     attribs.add(_app_name, 'thickness', str(_thickness.value))
     attribs.add(_app_name, 'holeDiam', str(_holeDiam.value))
-    attribs.add(_app_name, 'backlash', str(_backlash.value))
-    attribs.add(_app_name, 'backlash', str(_gear_ratio.value))
-    attribs.add(_app_name, 'gear_ratio', str(_gear_ratio.value))
 # Event handler for the execute event.
 
 
@@ -698,13 +706,16 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
         super().__init__()
 
     def notify(self, args):
+        """
+        system executes this method when you press the [run] button
+        """
         try:
             eventArgs = adsk.core.CommandEventArgs.cast(args)
 
-            if _standard.selectedItem.name == 'English':
-                diaPitch = _diaPitch.value*25.4
-            elif _standard.selectedItem.name == 'Metric':
-                diaPitch = _module.value
+            # if _standard.selectedItem.name == 'English':
+            #     diaPitch = _diaPitch.value*25.4
+            # elif _standard.selectedItem.name == 'Metric':
+            #     diaPitch = _module.value
 
             # Save the current values as attributes.
             des = adsk.fusion.Design.cast(_app.activeProduct)
@@ -751,6 +762,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.draw_mp_sketch(mp_sketch)
             abenics.extrude_mp(mp_sketch, thickness)
 
+            # todo : add num_steps input
             num_steps = 36
             delta_angle = (2*math.pi) / num_steps
             for i in range(num_steps):
@@ -764,6 +776,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
 
             last_group = timelineGroup
 
+            # this will be fail
             try:
                 timelineGroups = des.timeline.timelineGroups
                 timelineGroup = timelineGroups.add(
@@ -773,6 +786,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                 pass
 
             # SH Gear 2
+            sh_angle = 2*math.pi/(abenics.gear_ratio+1.0e-9)
             sketches = abenics.sh_comp.sketches
             xyPlane = abenics.sh_comp.xYConstructionPlane
             i_sketch = sketches.add(xyPlane)
@@ -815,78 +829,25 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
         super().__init__()
 
     def notify(self, args):
+        """
+        system call this method when values in input-boxes change.
+        """
         try:
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
             global _units
             if changedInput.id == 'standard':
-                if _standard.selectedItem.name == 'English':
-                    _imgInputMetric.isVisible = False
-                    _imgInputEnglish.isVisible = True
-
-                    _diaPitch.isVisible = True
-                    _module.isVisible = False
-
-                    _diaPitch.value = 25.4 / (_module.value+0.0001)
-
-                    _units = 'in'
-                elif _standard.selectedItem.name == 'Metric':
-                    _imgInputMetric.isVisible = True
-                    _imgInputEnglish.isVisible = False
-
-                    _diaPitch.isVisible = False
-                    _module.isVisible = True
-
-                    _module.value = 25.4 / _diaPitch.value
-
-                    _units = 'mm'
-
-                # Set each one to it's current value because otherwised if the user
-                # has edited it, the value won't update in the dialog because
-                # apparently it remembers the units when the value was edited.
-                # Setting the value using the API resets this.
-                _backlash.value = _backlash.value
-                _backlash.unitType = _units
-                _rootFilletRad.value = _rootFilletRad.value
-                _rootFilletRad.unitType = _units
-                _thickness.value = _thickness.value
-                _thickness.unitType = _units
-                _holeDiam.value = _holeDiam.value
-                _holeDiam.unitType = _units
+                pass
 
             des = adsk.fusion.Design.cast(_app.activeProduct)
 
             d_sh = _module.value*int(_num_teeth_sh.value)
-            d_mp = d_sh/_gear_ratio.value
+            d_mp = d_sh/(_gear_ratio.value+1.0e-9)
             _pitch_diameter_sh.text = des.unitsManager.formatInternalValue(
                 d_sh, _units, True)
             _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
                 d_mp, _units, True)
-            # Update the pitch diameter value.
-            # diaPitch = None
-            # if _standard.selectedItem.name == 'English':
-            #     result = getCommandInputValue(_diaPitch, '')
-            #     if result[0]:
-            #         diaPitch = result[1]
-            # elif _standard.selectedItem.name == 'Metric':
-            #     result = getCommandInputValue(_module, '')
-            #     if result[0]:
-            #         diaPitch = 25.4 / result[1]
-            # if not diaPitch == None:
-            #     if _numTeeth.value.isdigit():
-            #         numTeeth = int(_numTeeth.value)
-            #         pitchDia = numTeeth/diaPitch
-
-            #         # The pitch dia has been calculated in inches, but this expects cm as the input units.
-            #         des = adsk.fusion.Design.cast(_app.activeProduct)
-            #         pitchDiaText = des.unitsManager.formatInternalValue(
-            #             pitchDia * 2.54, _units, True)
-            #         _pitchDiam.text = pitchDiaText
-            #     else:
-            #         _pitchDiam.text = ''
-            # else:
-            #     _pitchDiam.text = ''
 
             if changedInput.id == 'pressureAngle':
                 if _pressureAngle.selectedItem.name == 'Custom':
@@ -905,6 +866,8 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
 
     def notify(self, args):
         try:
+            """system may call this after InputChangedEvent
+            """
             eventArgs = adsk.core.ValidateInputsEventArgs.cast(args)
 
             _errMessage.text = ''
@@ -922,35 +885,11 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                 eventArgs.areInputsValid = False
                 return
 
-            # Calculate some of the gear sizes to use in validation.
-            if _standard.selectedItem.name == 'English':
-                result = getCommandInputValue(_diaPitch, '')
-                if result[0] == False:
-                    eventArgs.areInputsValid = False
-                    return
-                else:
-                    diaPitch = (result[1]+0.001)
-            elif _standard.selectedItem.name == 'Metric':
-                result = getCommandInputValue(_module, '')
-                if result[0] == False:
-                    eventArgs.areInputsValid = False
-                    return
-                else:
-                    diaPitch = 25.4 / (result[1]+0.0001)
+            pitch_diameter = float(_pitch_diameter_mp.value)
+            dedendum = 1.25 * _module
+            dedendum *= 0.1  # mm->cm
 
-            diametralPitch = diaPitch / 2.54
-            pitchDia = numTeeth / diametralPitch
-
-            if (diametralPitch < (20 * (math.pi/180))-0.000001):
-                dedendum = 1.157 / diametralPitch
-            else:
-                circularPitch = math.pi / diametralPitch
-                if circularPitch >= 20:
-                    dedendum = 1.25 / diametralPitch
-                else:
-                    dedendum = (1.2 / diametralPitch) + (.002 * 2.54)
-
-            rootDia = pitchDia - (2 * dedendum)
+            rootDia = pitch_diameter - (2 * dedendum)
 
             if _pressureAngle.selectedItem.name == 'Custom':
                 pressureAngle = _pressureAngleCustom.value
@@ -961,7 +900,7 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                     pressureAngle = 20.0 * (math.pi/180)
                 elif _pressureAngle.selectedItem.name == '25 deg':
                     pressureAngle = 25.0 * (math.pi/180)
-            baseCircleDia = pitchDia * math.cos(pressureAngle)
+            baseCircleDia = pitch_diameter * math.cos(pressureAngle)
             baseCircleCircumference = 2 * math.pi * (baseCircleDia / 2)
 
             des = adsk.fusion.Design.cast(_app.activeProduct)
