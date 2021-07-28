@@ -5,7 +5,7 @@ Script to make ABENICS with Fusion360.
 This script is derived from SpurGear.py which is a sample of Fusion360 written by Brian Ekins
 Kazuki Abe, Kenjiro Tadakuma and Riichiro Tadakuma develop ABENICS. 
 ABENICS system is patent pending.
-You have to attention to create and use the gears and application.
+You have to pay attention to create and use the gears and application.
 
 Note:
     Default length unit of Fusion360 Script is cm.
