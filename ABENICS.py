@@ -63,7 +63,7 @@ _app_name = 'ABENICS'
 
 
 def defineCommandDialog(inputs, standard, pressureAngle):
-    global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _pitch, _module, _numTeeth, _rootFilletRad, _thickness, _holeDiam, _pitchDiam, _backlash, _imgInputEnglish, _imgInputMetric, _errMessage
+    global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _module, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputEnglish, _imgInputMetric, _errMessage
     # _imgInputEnglish = inputs.addImageCommandInput(
     #     'gearImageEnglish', '', 'Resources/GearEnglish.png')
     # _imgInputEnglish.isFullWidth = True
@@ -629,7 +629,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd.isExecutedWhenPreEmpted = False
             inputs = cmd.commandInputs
 
-            global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _pitch, _module, _numTeeth, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputMetric, _errMessage
+            global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _module, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputMetric, _errMessage
             global _num_teeth_sh, _gear_ratio
             # Define the command dialog.
             defineCommandDialog(inputs, standard, pressureAngle)
@@ -652,6 +652,9 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             _rootFilletRad = inputs.addValueInput(
                 'rootFilletRad', 'Root Fillet Radius', _units, adsk.core.ValueInput.createByReal(float(rootFilletRad)))
+            # hide rootfillet to avoid confusion
+            # todo: activate root fillet
+            _rootFilletRad.isVisible = False
 
             _thickness = inputs.addValueInput(
                 'thickness', 'Gear Thickness', _units, adsk.core.ValueInput.createByReal(float(thickness)))
