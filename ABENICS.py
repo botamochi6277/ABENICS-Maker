@@ -1,14 +1,11 @@
-# Author-Brian Ekins
-# Description-Creates a spur gear component.
-
-# AUTODESK PROVIDES THIS PROGRAM "AS IS" AND WITH ALL FAULTS. AUTODESK SPECIFICALLY
-# DISCLAIMS ANY IMPLIED WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR USE.
-# AUTODESK, INC. DOES NOT WARRANT THAT THE OPERATION OF THE PROGRAM WILL BE
-# UNINTERRUPTED OR ERROR FREE.
-
 """
 Fusion360 Script to make Special Spherical Gear, ABENICS
 
+Script to make ABENICS with Fusion360.
+This script is derived from SpurGear.py which is a sample of Fusion360 written by Brian Ekins
+Kazuki Abe, Kenjiro Tadakuma and Riichiro Tadakuma develop ABENICS. 
+ABENICS system is patent pending.
+You have to attention to create and use the gears and application.
 
 Note:
     Default length unit of Fusion360 Script is cm.
@@ -16,6 +13,7 @@ Note:
     IEEE Paper of ABENICS: https://ieeexplore.ieee.org/document/9415699
     Video :https://www.youtube.com/watch?v=hhDdfiRCQS4
     Gear: https://en.wikipedia.org/wiki/Gear
+    Patent: https://jstore.jst.go.jp/nationalPatentDetail.html?pat_id=38455
 """
 
 import adsk.core
