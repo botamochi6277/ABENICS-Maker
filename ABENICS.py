@@ -34,7 +34,7 @@ _imgInputEnglish = adsk.core.ImageCommandInput.cast(None)
 _imgInputMetric = adsk.core.ImageCommandInput.cast(None)
 # adsk standard system
 _standard = adsk.core.DropDownCommandInput.cast(None)
-# common
+# common gear parameters
 _pressureAngle = adsk.core.DropDownCommandInput.cast(None)
 _pressureAngleCustom = adsk.core.ValueCommandInput.cast(None)
 _backlash = adsk.core.ValueCommandInput.cast(None)
@@ -108,19 +108,23 @@ def defineCommandDialog(inputs, standard, pressureAngle):
 class ABENICS:
     """
     Attributes:
-        module (int): module of gear
-        pressure_angle (float): pressure angle of gear
+        module (float): module of gears
+        pressure_angle (float): pressure angle of gears
+        backlash (float): backlash
 
-        sh_diameter (float): diameter of pitch circle of a ball gear
-        num_teeth_sh (int): the num. of ball gear as spurgear
+        diameter_sh (float): diameter of pitch circle of a ball gear
+        num_teeth_sh (int): the num. of teeth of the ph-gear as a spurgear
 
-        d_pinion (float): diameter of pitch circle of a pinion gear
-        num_teeth_pinion (int): the num. of a pinion gear 
-        d_hole_pinion (float): hole of a pinion gear
+        diameter_mp (float): diameter of pitch circle of the mp-gear
+        num_teeth_mp (int): the num. of teeth of the mp-gear 
+        diameter_hole_mp (float): hole diameter of the mp-gear
+        thickness_mp (float): thickness of the mp-gear
+
+        gear_ratio (float): gear ratio (SH/MP) should be 2.0
 
     Notes:
         module = diameter / num_teeth
-        pitch = 2 * pi / num_teeth
+        pitch_angle = 2 * pi / num_teeth
 
         https://en.wikipedia.org/wiki/Backlash_(engineering)
     """
@@ -128,22 +132,21 @@ class ABENICS:
     def __init__(self, design,
                  module=1.0, pressure_angle=20.0 * math.pi/180.0,
                  num_teeth_sh=40, gear_ratio=2, thickness=4.0, hole_diameter=0.4) -> None:
+        # common parameters
         self.module = module
         self.pressure_angle = pressure_angle  # [rad]
-
+        self.backlash = 0.1  # cm
         self.gear_ratio = gear_ratio
 
         self.num_teeth_sh = num_teeth_sh
 
-        self.sh_diameter = 10*self.module*self.num_teeth_sh  # cm
+        self.diameter_sh = 10*self.module*self.num_teeth_sh  # cm
         self.pitch_angle = 2.0*math.pi/self.num_teeth_sh
 
-        self.d_pinion = self.sh_diameter/self.gear_ratio
-        self.num_teeth_pinion = int(self.num_teeth_sh/self.gear_ratio)
-        self.d_hole_pinion = hole_diameter  # cm
-        self.mp_thickness = thickness
-
-        self.backlash = 0.1  # cm
+        self.diameter_mp = self.diameter_sh/self.gear_ratio
+        self.num_teeth_mp = int(self.num_teeth_sh/self.gear_ratio)
+        self.diameter_hole_mp = hole_diameter  # cm
+        self.thickness_mp = thickness
 
         # Create a new component by creating an occurrence.
         self.root_occurrences = design.rootComponent.occurrences
@@ -159,7 +162,7 @@ class ABENICS:
         self.mp_comp = adsk.fusion.Component.cast(newOcc.component)
 
     def draw_tooth(self, sketch, root_diameter, tip_diameter, angle=0):
-        base_diameter = self.sh_diameter * math.cos(self.pressure_angle)
+        base_diameter = self.diameter_sh * math.cos(self.pressure_angle)
 
         # Calculate points along the involute curve.
         involute_point_count = 15  # resolution
@@ -171,7 +174,7 @@ class ABENICS:
         # Get the point along the tooth that's at the pitch diameter and then
         # calculate the angle to that point.
         pitch_involute_point = involutePoint(
-            0.5*base_diameter, 0.5*self.sh_diameter)
+            0.5*base_diameter, 0.5*self.diameter_sh)
         pitch_point_angle = math.atan(
             pitch_involute_point.y / pitch_involute_point.x)
 
@@ -181,7 +184,7 @@ class ABENICS:
         tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_sh)
 
         # Determine the angle needed for the specified backlash.
-        backlashAngle = (self.backlash / (0.5*self.sh_diameter)) * .25
+        backlashAngle = (self.backlash / (0.5*self.diameter_sh)) * .25
 
         # Determine the angle to rotate the curve.
         rotate_angle = -((0.5*tooth_thickness_angle) +
@@ -270,15 +273,15 @@ class ABENICS:
         dedendum = 1.25 * self.module
         dedendum *= 0.1  # mm->cm
 
-        root_dia = self.sh_diameter - 2 * dedendum
-        # root_dia = self.sh_diameter - 2.5*self.module
+        root_dia = self.diameter_sh - 2 * dedendum
+        # root_dia = self.diameter_sh - 2.5*self.module
 
-        baseCircleDia = self.sh_diameter * math.cos(self.pressure_angle)
+        baseCircleDia = self.diameter_sh * math.cos(self.pressure_angle)
 
         # tip diameter
-        # outsideDia = (self.num_teeth_sh + 2) / self.sh_diameter
-        tip_diameter = self.sh_diameter + 2 * self.module * 0.1
-        # tip_diameter = self.sh_diameter + 2 * addendum
+        # outsideDia = (self.num_teeth_sh + 2) / self.diameter_sh
+        tip_diameter = self.diameter_sh + 2 * self.module * 0.1
+        # tip_diameter = self.diameter_sh + 2 * addendum
 
         origin = adsk.core.Point3D.create(0, 0, 0)
         # Draw a root fan shape.
@@ -327,15 +330,15 @@ class ABENICS:
         return rev
 
     def draw_mp_sketch(self, sketch):
-        tip_diameter = self.d_pinion + 2 * self.module * 0.1
+        tip_diameter = self.diameter_mp + 2 * self.module * 0.1
 
         center = adsk.core.Point3D.create(
-            0.5*self.d_pinion+0.5*self.sh_diameter, 0, 0)
+            0.5*self.diameter_mp+0.5*self.diameter_sh, 0, 0)
         c = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             center, 0.5*tip_diameter)
 
         sketch.sketchCurves.sketchCircles.addByCenterRadius(
-            center, 0.5*self.d_hole_pinion)
+            center, 0.5*self.diameter_hole_mp)
 
     def extrude_mp(self, sketch, thickness):
         prof = adsk.fusion.Profile.cast(None)
@@ -394,7 +397,7 @@ class ABENICS:
         bodies = adsk.core.ObjectCollection.create()
         bodies.add(self.mp_comp.bRepBodies.item(0))
         tf = adsk.core.Matrix3D.create()
-        x = 0.5 * self.sh_diameter + 0.5*self.d_pinion
+        x = 0.5 * self.diameter_sh + 0.5*self.diameter_mp
         tf.setToRotation(
             angle=-angle,
             axis=z_up,
