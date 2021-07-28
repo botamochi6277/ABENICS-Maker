@@ -112,7 +112,7 @@ class ABENICS:
         pressure_angle (float): pressure angle of gear
 
         sh_diameter (float): diameter of pitch circle of a ball gear
-        num_teeth_ball (int): the num. of ball gear as spurgear
+        num_teeth_sh (int): the num. of ball gear as spurgear
 
         d_pinion (float): diameter of pitch circle of a pinion gear
         num_teeth_pinion (int): the num. of a pinion gear 
@@ -127,17 +127,19 @@ class ABENICS:
 
     def __init__(self, design,
                  module=1.0, pressure_angle=20.0 * math.pi/180.0,
-                 sh_diameter=8.0, gear_ratio=2, thickness=4.0, hole_diameter=0.4) -> None:
+                 num_teeth_sh=40, gear_ratio=2, thickness=4.0, hole_diameter=0.4) -> None:
         self.module = module
         self.pressure_angle = pressure_angle  # [rad]
-        self.sh_diameter = sh_diameter  # cm
+
         self.gear_ratio = gear_ratio
 
-        self.num_teeth_ball = int(10*self.sh_diameter / self.module)
-        self.pitch_angle = 2.0*math.pi/self.num_teeth_ball
+        self.num_teeth_sh = num_teeth_sh
+
+        self.sh_diameter = 10*self.module*self.num_teeth_sh  # cm
+        self.pitch_angle = 2.0*math.pi/self.num_teeth_sh
 
         self.d_pinion = self.sh_diameter/self.gear_ratio
-        self.num_teeth_pinion = int(self.num_teeth_ball/self.gear_ratio)
+        self.num_teeth_pinion = int(self.num_teeth_sh/self.gear_ratio)
         self.d_hole_pinion = hole_diameter  # cm
         self.mp_thickness = thickness
 
@@ -176,7 +178,7 @@ class ABENICS:
         # Determine the angle defined by the tooth thickness as measured at
         # the pitch diameter circle.
         # ! this is half circular pitch angle
-        tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_ball)
+        tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_sh)
 
         # Determine the angle needed for the specified backlash.
         backlashAngle = (self.backlash / (0.5*self.sh_diameter)) * .25
@@ -274,7 +276,7 @@ class ABENICS:
         baseCircleDia = self.sh_diameter * math.cos(self.pressure_angle)
 
         # tip diameter
-        # outsideDia = (self.num_teeth_ball + 2) / self.sh_diameter
+        # outsideDia = (self.num_teeth_sh + 2) / self.sh_diameter
         tip_diameter = self.sh_diameter + 2 * self.module * 0.1
         # tip_diameter = self.sh_diameter + 2 * addendum
 
@@ -296,7 +298,7 @@ class ABENICS:
         c.isConstruction = True
 
         # draw tooth
-        for i in range(int(0.5*self.num_teeth_ball)):
+        for i in range(int(0.5*self.num_teeth_sh)):
             angle = self.pitch_angle * i + 0.5*self.pitch_angle + axis_angle
             self.draw_tooth(sketch,
                             root_diameter=root_dia,
@@ -592,12 +594,6 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             if holeDiamAttrib:
                 holeDiam = holeDiamAttrib.value
 
-            pitch_diameter_sh = 4.0
-            pitch_dia_sh_attr = des.attributes.itemByName(
-                _app_name, 'pitch_diameter_sh')
-            if pitch_dia_sh_attr:
-                pitch_diameter_sh = pitch_dia_sh_attr.value
-
             num_teeth_sh = '40'
             num_teeth_sh_attr = des.attributes.itemByName(
                 _app_name, 'num_teeth_sh')
@@ -615,7 +611,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs = cmd.commandInputs
 
             global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _pitch, _module, _numTeeth, _rootFilletRad, _thickness, _holeDiam, _pitchDiam, _backlash, _imgInputEnglish, _imgInputMetric, _errMessage
-            global _pitch_diameter_sh, _num_teeth_sh, _gear_ratio
+            global _num_teeth_sh, _gear_ratio
             # Define the command dialog.
             defineCommandDialog(inputs, standard, pressureAngle)
 
@@ -644,16 +640,15 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             _holeDiam = inputs.addValueInput(
                 'holeDiam', 'Hole Diameter', _units, adsk.core.ValueInput.createByReal(float(holeDiam)))
 
-            _pitch_diameter_sh = inputs.addValueInput(
-                'pitch_diameter_sh', 'Pitch Diameter of SH-Gear', _units, adsk.core.ValueInput.createByReal(float(pitch_diameter_sh)))
-
             _num_teeth_sh = inputs.addStringValueInput(
                 'num_teeth_sh', 'Num Teeth of SH-Gear', num_teeth_sh)
 
             _gear_ratio = inputs.addValueInput(
                 'gear_ratio', 'Gear Ratio', '', adsk.core.ValueInput.createByReal(float(gear_ratio)))
 
-            global _pitch_diameter_mp
+            global _pitch_diameter_sh, _pitch_diameter_mp
+            _pitch_diameter_sh = inputs.addTextBoxCommandInput(
+                'pitch_diameter_sh', 'SP-Gear Diameter', '', 1, True)
             _pitch_diameter_mp = inputs.addTextBoxCommandInput(
                 'pitch_diameter_mp', 'MP-Gear Diameter', '', 1, True)
 
@@ -690,8 +685,6 @@ def SaveValueAsAttributes(attribs):
     attribs.add(_app_name, 'thickness', str(_thickness.value))
     attribs.add(_app_name, 'holeDiam', str(_holeDiam.value))
     attribs.add(_app_name, 'backlash', str(_backlash.value))
-
-    attribs.add(_app_name, 'pitch_diameter_sh', str(_pitch_diameter_sh.value))
     attribs.add(_app_name, 'backlash', str(_gear_ratio.value))
     attribs.add(_app_name, 'gear_ratio', str(_gear_ratio.value))
 # Event handler for the execute event.
@@ -832,7 +825,7 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     _diaPitch.isVisible = True
                     _module.isVisible = False
 
-                    _diaPitch.value = 25.4 / _module.value
+                    _diaPitch.value = 25.4 / (_module.value+0.0001)
 
                     _units = 'in'
                 elif _standard.selectedItem.name == 'Metric':
@@ -860,9 +853,13 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 _holeDiam.unitType = _units
 
             des = adsk.fusion.Design.cast(_app.activeProduct)
-            d = _pitch_diameter_sh.value/_gear_ratio.value
+
+            d_sh = _module.value*int(_num_teeth_sh.value)
+            d_mp = d_sh/_gear_ratio.value
+            _pitch_diameter_sh.text = des.unitsManager.formatInternalValue(
+                d_sh, _units, True)
             _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
-                d, _units, True)
+                d_mp, _units, True)
             # Update the pitch diameter value.
             # diaPitch = None
             # if _standard.selectedItem.name == 'English':
@@ -929,14 +926,14 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                     eventArgs.areInputsValid = False
                     return
                 else:
-                    diaPitch = result[1]
+                    diaPitch = (result[1]+0.001)
             elif _standard.selectedItem.name == 'Metric':
                 result = getCommandInputValue(_module, '')
                 if result[0] == False:
                     eventArgs.areInputsValid = False
                     return
                 else:
-                    diaPitch = 25.4 / result[1]
+                    diaPitch = 25.4 / (result[1]+0.0001)
 
             diametralPitch = diaPitch / 2.54
             pitchDia = numTeeth / diametralPitch
