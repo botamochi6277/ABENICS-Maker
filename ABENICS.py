@@ -79,9 +79,9 @@ def defineCommandDialog(inputs, standard, pressureAngle):
     #     _standard.listItems.add('Metric', False)
     #     _imgInputMetric.isVisible = False
     # else:
-    _standard.listItems.add('English', False)
+    # _standard.listItems.add('English', False)
     _standard.listItems.add('Metric', True)
-    _imgInputEnglish.isVisible = False
+    # _imgInputEnglish.isVisible = False
 
     _pressureAngle = inputs.addDropDownCommandInput(
         'pressureAngle', 'Pressure Angle', adsk.core.DropDownStyles.TextListDropDownStyle)
@@ -618,7 +618,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd.isExecutedWhenPreEmpted = False
             inputs = cmd.commandInputs
 
-            global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _pitch, _module, _numTeeth, _rootFilletRad, _thickness, _holeDiam, _pitchDiam, _backlash, _imgInputEnglish, _imgInputMetric, _errMessage
+            global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _pitch, _module, _numTeeth, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputMetric, _errMessage
             global _num_teeth_sh, _gear_ratio
             # Define the command dialog.
             defineCommandDialog(inputs, standard, pressureAngle)
@@ -801,11 +801,11 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             gearComp = abenics.sh_comp
 
             if gearComp:
-                if _standard.selectedItem.name == 'English':
-                    desc = 'Spur Gear; Diametrial Pitch: ' + \
-                        str(diaPitch) + '; '
-                elif _standard.selectedItem.name == 'Metric':
-                    desc = 'Spur Gear; Module: ' + str(25.4 / diaPitch) + '; '
+                # if _standard.selectedItem.name == 'English':
+                #     desc = 'Spur Gear; Diametrial Pitch: ' + \
+                #         str(diaPitch) + '; '
+                # elif _standard.selectedItem.name == 'Metric':
+                desc = 'Spur Gear; Module: ' + str(abenics.module) + '; '
 
                 # desc += 'Num Teeth: ' + str(numTeeth) + '; '
                 desc += 'Pressure Angle: ' + \
@@ -844,6 +844,7 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
             d_sh = _module.value*int(_num_teeth_sh.value)
             d_mp = d_sh/(_gear_ratio.value+1.0e-9)
+            d_mp = round(d_mp, 2)
             _pitch_diameter_sh.text = des.unitsManager.formatInternalValue(
                 d_sh, _units, True)
             _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
@@ -885,8 +886,10 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                 eventArgs.areInputsValid = False
                 return
 
-            pitch_diameter = float(_pitch_diameter_mp.value)
-            dedendum = 1.25 * _module
+            # _pitch_diameter_mp.text : "400 mm"
+            pd = _pitch_diameter_mp.text.split(' ')
+            pitch_diameter = float(pd[0])
+            dedendum = 1.25 * _module.value
             dedendum *= 0.1  # mm->cm
 
             rootDia = pitch_diameter - (2 * dedendum)
