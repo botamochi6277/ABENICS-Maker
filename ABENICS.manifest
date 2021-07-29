@@ -1,9 +1,9 @@
 {
 	"autodeskProduct":	"Fusion360",
 	"type":	"script",
-	"author":	"",
+	"author":	"botamochi6277",
 	"description":	{
-		"":	"Creates a spur gear."
+		"":	"Creates a ABENICS system."
 	},
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true
