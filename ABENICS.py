@@ -46,6 +46,8 @@ _num_teeth_sh = adsk.core.StringValueCommandInput.cast(None)
 # MP Gear
 _thickness = adsk.core.ValueCommandInput.cast(None)
 _holeDiam = adsk.core.ValueCommandInput.cast(None)
+# Engrave
+_num_rotation_steps = adsk.core.StringValueCommandInput.cast(None)
 
 # reference
 _pitch_diameter_sh = adsk.core.TextBoxCommandInput.cast(None)
@@ -623,12 +625,18 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             if gear_ratio_attr:
                 gear_ratio = gear_ratio_attr.value
 
+            num_rotation_steps = '36'
+            num_rotation_steps_attr = des.attributes.itemByName(
+                _app_name, 'num_rotation_steps')
+            if num_rotation_steps_attr:
+                num_rotation_steps = num_rotation_steps_attr.value
+
             cmd = eventArgs.command
             cmd.isExecutedWhenPreEmpted = False
             inputs = cmd.commandInputs
 
             global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _module, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputMetric, _errMessage
-            global _num_teeth_sh, _gear_ratio
+            global _num_teeth_sh, _gear_ratio,_num_rotation_steps
             # Define the command dialog.
             defineCommandDialog(inputs, standard, pressureAngle)
 
@@ -665,6 +673,9 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             _gear_ratio = inputs.addValueInput(
                 'gear_ratio', 'Gear Ratio', '', adsk.core.ValueInput.createByReal(float(gear_ratio)))
+
+            _num_rotation_steps = inputs.addStringValueInput(
+                'num_rotation_steps', 'Num Rotation Steps to Engrave', num_rotation_steps)
 
             # dependant variables
             global _pitch_diameter_sh, _pitch_diameter_mp
@@ -710,6 +721,8 @@ def SaveValueAsAttributes(attribs):
     # MP Gear
     attribs.add(_app_name, 'thickness', str(_thickness.value))
     attribs.add(_app_name, 'holeDiam', str(_holeDiam.value))
+
+    attribs.add(_app_name, 'num_rotation_steps', str(_num_rotation_steps.value))
 # Event handler for the execute event.
 
 
@@ -747,6 +760,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
 
             rootFilletRad = _rootFilletRad.value
             num_teeth = int(_num_teeth_sh.value)
+            num_rotation_steps = int(_num_rotation_steps.value)
 
             # Create the gear.
             # gearComp = drawGear(des, diaPitch, numTeeth, thickness,
@@ -780,10 +794,9 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.draw_mp_sketch(mp_sketch)
             abenics.extrude_mp(mp_sketch, abenics.thickness_mp)
 
-            # todo : add num_steps input
-            num_steps = 36
-            delta_angle = (2*math.pi) / num_steps
-            for i in range(num_steps):
+            # Engrave MP-Gear and rotate both gears
+            delta_angle = (2*math.pi) / num_rotation_steps
+            for i in range(num_rotation_steps):
                 timelineGroups = des.timeline.timelineGroups
                 e = abenics.engrave()
                 sh, mp = abenics.rotate_gears(delta_angle)
@@ -815,27 +828,9 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                 sk, ax_line,
                 operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation,
                 bodies=[abenics.sh_comp.bRepBodies.item(0)])
-            # rev_feature.participantBodies
-            gearComp = abenics.sh_comp
 
-            if gearComp:
-                # if _standard.selectedItem.name == 'English':
-                #     desc = 'Spur Gear; Diametrial Pitch: ' + \
-                #         str(diaPitch) + '; '
-                # elif _standard.selectedItem.name == 'Metric':
-                desc = 'Spur Gear; Module: ' + str(abenics.module) + '; '
-
-                # desc += 'Num Teeth: ' + str(numTeeth) + '; '
-                desc += 'Pressure Angle: ' + \
-                    str(pressureAngle * (180/math.pi)) + '; '
-
-                desc += 'Backlash: ' + \
-                    des.unitsManager.formatInternalValue(
-                        abenics.backlash, _units, True)
-                gearComp.description = desc
-
-            abenics.sh_comp.description = 'SH_Gear'
-            abenics.mp_comp.description = 'MP_Gear'
+            abenics.sh_comp.name = 'SH_Gear'
+            abenics.mp_comp.name = 'MP_Gear'
         except:
             if _ui:
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
