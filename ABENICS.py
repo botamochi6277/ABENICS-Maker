@@ -141,7 +141,7 @@ class ABENICS:
 
         self.num_teeth_sh = num_teeth_sh
 
-        self.diameter_sh = 0.1*(self.module*self.num_teeth_sh) # mm->cm
+        self.diameter_sh = 0.1*(self.module*self.num_teeth_sh)  # mm->cm
         self.pitch_angle = 2.0*math.pi/self.num_teeth_sh
 
         self.diameter_mp = self.diameter_sh/self.gear_ratio
@@ -151,16 +151,16 @@ class ABENICS:
 
         # Create a new component by creating an occurrence.
         self.root_occurrences = design.rootComponent.occurrences
-    
+
     def print(self):
         print('module : {:0.2f}'.format(self.module))
-        print('pressure_angle : {:0.2f} deg'.format(self.pressure_angle*(180/math.pi)))
+        print('pressure_angle : {:0.2f} deg'.format(
+            self.pressure_angle*(180/math.pi)))
         print('backlash : {:0.2f} mm'.format(10*self.backlash))
         print('gear_ratio : {:0.2f}'.format(self.gear_ratio))
         print('num_teeth_sh : {:0.2f}'.format(self.num_teeth_sh))
         print('diameter_sh : {:0.2f} mm'.format(10*self.diameter_sh))
         print('diameter_mp : {:0.2f} mm'.format(10*self.diameter_mp))
-
 
     def make_sh_comp(self):
         mat = adsk.core.Matrix3D.create()
@@ -636,7 +636,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs = cmd.commandInputs
 
             global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _module, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputMetric, _errMessage
-            global _num_teeth_sh, _gear_ratio,_num_rotation_steps
+            global _num_teeth_sh, _gear_ratio, _num_rotation_steps
             # Define the command dialog.
             defineCommandDialog(inputs, standard, pressureAngle)
 
@@ -722,7 +722,8 @@ def SaveValueAsAttributes(attribs):
     attribs.add(_app_name, 'thickness', str(_thickness.value))
     attribs.add(_app_name, 'holeDiam', str(_holeDiam.value))
 
-    attribs.add(_app_name, 'num_rotation_steps', str(_num_rotation_steps.value))
+    attribs.add(_app_name, 'num_rotation_steps',
+                str(_num_rotation_steps.value))
 # Event handler for the execute event.
 
 
@@ -817,7 +818,20 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                 pass
 
             # SH Gear 2
-            sh_angle = 2*math.pi/(abenics.gear_ratio+1.0e-9)
+            # reset rotation
+            sh_angle = -2*math.pi/(abenics.gear_ratio+1.0e-9)
+            moves = abenics.sh_comp.features.moveFeatures
+            bodies = adsk.core.ObjectCollection.create()
+            bodies.add(abenics.sh_comp.bRepBodies.item(0))
+            tf = adsk.core.Matrix3D.create()
+            tf.setToRotation(
+                angle=sh_angle,
+                axis=adsk.core.Vector3D.create(0, 0, 1),
+                origin=adsk.core.Point3D.create(0, 0, 0)
+            )
+            move_input = moves.createInput(bodies, tf)
+            move_sh = moves.add(move_input)
+            # intersect gear
             sketches = abenics.sh_comp.sketches
             xyPlane = abenics.sh_comp.xYConstructionPlane
             i_sketch = sketches.add(xyPlane)
