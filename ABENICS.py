@@ -41,8 +41,8 @@ _backlash = adsk.core.ValueCommandInput.cast(None)
 _diaPitch = adsk.core.ValueCommandInput.cast(None)
 _gear_ratio = adsk.core.StringValueCommandInput.cast(None)
 
-# SH Gear
-_num_teeth_sh = adsk.core.StringValueCommandInput.cast(None)
+# CS Gear
+_num_teeth_cs = adsk.core.StringValueCommandInput.cast(None)
 # MP Gear
 _thickness = adsk.core.ValueCommandInput.cast(None)
 _holeDiam = adsk.core.ValueCommandInput.cast(None)
@@ -50,7 +50,7 @@ _holeDiam = adsk.core.ValueCommandInput.cast(None)
 _num_rotation_steps = adsk.core.StringValueCommandInput.cast(None)
 
 # reference
-_pitch_diameter_sh = adsk.core.TextBoxCommandInput.cast(None)
+_pitch_diameter_cs = adsk.core.TextBoxCommandInput.cast(None)
 _pitch_diameter_mp = adsk.core.TextBoxCommandInput.cast(None)
 
 
@@ -113,15 +113,15 @@ class ABENICS:
         pressure_angle (float): pressure angle of gears
         backlash (float): backlash
 
-        diameter_sh (float): diameter of pitch circle of a ball gear
-        num_teeth_sh (int): the num. of teeth of the ph-gear as a spurgear
+        diameter_cs (float): diameter of pitch circle of a ball gear
+        num_teeth_cs (int): the num. of teeth of the cs-gear as a spurgear
 
         diameter_mp (float): diameter of pitch circle of the mp-gear
         num_teeth_mp (int): the num. of teeth of the mp-gear 
         diameter_hole_mp (float): hole diameter of the mp-gear
         thickness_mp (float): thickness of the mp-gear
 
-        gear_ratio (float): gear ratio (SH/MP) should be 2.0
+        gear_ratio (float): gear ratio (CS/MP) should be 2.0
 
     Notes:
         module = diameter / num_teeth
@@ -132,20 +132,20 @@ class ABENICS:
 
     def __init__(self, design,
                  module=1.0, pressure_angle=20.0 * math.pi/180.0,
-                 num_teeth_sh=40, gear_ratio=2, thickness=4.0, hole_diameter=0.4, backlash=0) -> None:
+                 num_teeth_cs=40, gear_ratio=2, thickness=4.0, hole_diameter=0.4, backlash=0) -> None:
         # common parameters
         self.module = module
         self.pressure_angle = pressure_angle  # [rad]
         self.backlash = backlash
         self.gear_ratio = gear_ratio
 
-        self.num_teeth_sh = num_teeth_sh
+        self.num_teeth_cs = num_teeth_cs
 
-        self.diameter_sh = 0.1*(self.module*self.num_teeth_sh)  # mm->cm
-        self.pitch_angle = 2.0*math.pi/self.num_teeth_sh
+        self.diameter_cs = 0.1*(self.module*self.num_teeth_cs)  # mm->cm
+        self.pitch_angle = 2.0*math.pi/self.num_teeth_cs
 
-        self.diameter_mp = self.diameter_sh/self.gear_ratio
-        self.num_teeth_mp = int(self.num_teeth_sh/self.gear_ratio)
+        self.diameter_mp = self.diameter_cs/self.gear_ratio
+        self.num_teeth_mp = int(self.num_teeth_cs/self.gear_ratio)
         self.diameter_hole_mp = hole_diameter
         self.thickness_mp = thickness
 
@@ -158,14 +158,14 @@ class ABENICS:
             self.pressure_angle*(180/math.pi)))
         print('backlash : {:0.2f} mm'.format(10*self.backlash))
         print('gear_ratio : {:0.2f}'.format(self.gear_ratio))
-        print('num_teeth_sh : {:0.2f}'.format(self.num_teeth_sh))
-        print('diameter_sh : {:0.2f} mm'.format(10*self.diameter_sh))
+        print('num_teeth_cs : {:0.2f}'.format(self.num_teeth_cs))
+        print('diameter_cs : {:0.2f} mm'.format(10*self.diameter_cs))
         print('diameter_mp : {:0.2f} mm'.format(10*self.diameter_mp))
 
-    def make_sh_comp(self):
+    def make_cs_comp(self):
         mat = adsk.core.Matrix3D.create()
         newOcc = self.root_occurrences.addNewComponent(mat)
-        self.sh_comp = adsk.fusion.Component.cast(newOcc.component)
+        self.cs_comp = adsk.fusion.Component.cast(newOcc.component)
 
     def make_mp_comp(self):
         mat = adsk.core.Matrix3D.create()
@@ -173,7 +173,7 @@ class ABENICS:
         self.mp_comp = adsk.fusion.Component.cast(newOcc.component)
 
     def draw_tooth(self, sketch, root_diameter, tip_diameter, angle=0):
-        base_diameter = self.diameter_sh * math.cos(self.pressure_angle)
+        base_diameter = self.diameter_cs * math.cos(self.pressure_angle)
 
         # Calculate points along the involute curve.
         involute_point_count = 15  # resolution
@@ -185,17 +185,17 @@ class ABENICS:
         # Get the point along the tooth that's at the pitch diameter and then
         # calculate the angle to that point.
         pitch_involute_point = involutePoint(
-            0.5*base_diameter, 0.5*self.diameter_sh)
+            0.5*base_diameter, 0.5*self.diameter_cs)
         pitch_point_angle = math.atan(
             pitch_involute_point.y / pitch_involute_point.x)
 
         # Determine the angle defined by the tooth thickness as measured at
         # the pitch diameter circle.
         # ! this is half circular pitch angle
-        tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_sh)
+        tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_cs)
 
         # Determine the angle needed for the specified backlash.
-        backlashAngle = (self.backlash / (0.5*self.diameter_sh)) * .25
+        backlashAngle = (self.backlash / (0.5*self.diameter_cs)) * .25
 
         # Determine the angle to rotate the curve.
         rotate_angle = -((0.5*tooth_thickness_angle) +
@@ -284,15 +284,15 @@ class ABENICS:
         dedendum = 1.25 * self.module
         dedendum *= 0.1  # mm->cm
 
-        root_dia = self.diameter_sh - 2 * dedendum
-        # root_dia = self.diameter_sh - 2.5*self.module
+        root_dia = self.diameter_cs - 2 * dedendum
+        # root_dia = self.diameter_cs - 2.5*self.module
 
-        baseCircleDia = self.diameter_sh * math.cos(self.pressure_angle)
+        baseCircleDia = self.diameter_cs * math.cos(self.pressure_angle)
 
         # tip diameter
-        # outsideDia = (self.num_teeth_sh + 2) / self.diameter_sh
-        tip_diameter = self.diameter_sh + 2 * self.module * 0.1
-        # tip_diameter = self.diameter_sh + 2 * addendum
+        # outsideDia = (self.num_teeth_cs + 2) / self.diameter_cs
+        tip_diameter = self.diameter_cs + 2 * self.module * 0.1
+        # tip_diameter = self.diameter_cs + 2 * addendum
 
         origin = adsk.core.Point3D.create(0, 0, 0)
         # Draw a root fan shape.
@@ -313,7 +313,7 @@ class ABENICS:
         c.isConstruction = True
 
         # draw tooth
-        for i in range(int(0.5*self.num_teeth_sh)):
+        for i in range(int(0.5*self.num_teeth_cs)):
             angle = self.pitch_angle * i + 0.5*self.pitch_angle + axis_angle
             self.draw_tooth(sketch,
                             root_diameter=root_dia,
@@ -328,7 +328,7 @@ class ABENICS:
                          operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
                          bodies=None):
         # revolve profiles
-        revolves = self.sh_comp.features.revolveFeatures
+        revolves = self.cs_comp.features.revolveFeatures
         profile_set = adsk.core.ObjectCollection.create()
         for i in range(len(sk.profiles)):
             profile_set.add(sk.profiles.item(i))
@@ -345,7 +345,7 @@ class ABENICS:
         tip_diameter = self.diameter_mp + 2 * self.module * 0.1
 
         center = adsk.core.Point3D.create(
-            0.5*self.diameter_mp+0.5*self.diameter_sh, 0, 0)
+            0.5*self.diameter_mp+0.5*self.diameter_cs, 0, 0)
         c = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             center, 0.5*tip_diameter)
 
@@ -373,7 +373,7 @@ class ABENICS:
     def engrave(self):
         combines = self.mp_comp.features.combineFeatures
         tool_bodies = adsk.core.ObjectCollection.create()
-        tool_bodies.add(self.sh_comp.bRepBodies.item(0))
+        tool_bodies.add(self.cs_comp.bRepBodies.item(0))
         combine_input = combines.createInput(
             targetBody=self.mp_comp.bRepBodies.item(0),
             toolBodies=tool_bodies
@@ -389,10 +389,10 @@ class ABENICS:
             angle (float): 0--2*math.pi
         """
         z_up = adsk.core.Vector3D.create(0, 0, 1)
-        # rotate sh gear
-        moves = self.sh_comp.features.moveFeatures
+        # rotate cs gear
+        moves = self.cs_comp.features.moveFeatures
         bodies = adsk.core.ObjectCollection.create()
-        bodies.add(self.sh_comp.bRepBodies.item(0))
+        bodies.add(self.cs_comp.bRepBodies.item(0))
 
         tf = adsk.core.Matrix3D.create()
         tf.setToRotation(
@@ -409,7 +409,7 @@ class ABENICS:
         bodies = adsk.core.ObjectCollection.create()
         bodies.add(self.mp_comp.bRepBodies.item(0))
         tf = adsk.core.Matrix3D.create()
-        x = 0.5 * self.diameter_sh + 0.5*self.diameter_mp
+        x = 0.5 * self.diameter_cs + 0.5*self.diameter_mp
         tf.setToRotation(
             angle=-angle,
             axis=z_up,
@@ -613,11 +613,11 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             if holeDiamAttrib:
                 holeDiam = holeDiamAttrib.value
 
-            num_teeth_sh = '40'
+            num_teeth_cs = '40'
             num_teeth_sh_attr = des.attributes.itemByName(
-                _app_name, 'num_teeth_sh')
+                _app_name, 'num_teeth_cs')
             if num_teeth_sh_attr:
-                num_teeth_sh = num_teeth_sh_attr.value
+                num_teeth_cs = num_teeth_sh_attr.value
 
             gear_ratio = '2'
             gear_ratio_attr = des.attributes.itemByName(
@@ -636,7 +636,7 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs = cmd.commandInputs
 
             global _standard, _pressureAngle, _pressureAngleCustom, _diaPitch, _module, _rootFilletRad, _thickness, _holeDiam, _backlash, _imgInputMetric, _errMessage
-            global _num_teeth_sh, _gear_ratio, _num_rotation_steps
+            global _num_teeth_cs, _gear_ratio, _num_rotation_steps
             # Define the command dialog.
             defineCommandDialog(inputs, standard, pressureAngle)
 
@@ -668,8 +668,8 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             _holeDiam = inputs.addValueInput(
                 'holeDiam', 'Hole Diameter', _units, adsk.core.ValueInput.createByReal(float(holeDiam)))
 
-            _num_teeth_sh = inputs.addStringValueInput(
-                'num_teeth_sh', 'Num Teeth of SH-Gear', num_teeth_sh)
+            _num_teeth_cs = inputs.addStringValueInput(
+                'num_teeth_cs', 'Num Teeth of CS-Gear', num_teeth_cs)
 
             _gear_ratio = inputs.addValueInput(
                 'gear_ratio', 'Gear Ratio', '', adsk.core.ValueInput.createByReal(float(gear_ratio)))
@@ -678,9 +678,9 @@ class GearCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 'num_rotation_steps', 'Num Rotation Steps to Engrave', num_rotation_steps)
 
             # dependant variables
-            global _pitch_diameter_sh, _pitch_diameter_mp
-            _pitch_diameter_sh = inputs.addTextBoxCommandInput(
-                'pitch_diameter_sh', 'SP-Gear Diameter', '', 1, True)
+            global _pitch_diameter_cs, _pitch_diameter_mp
+            _pitch_diameter_cs = inputs.addTextBoxCommandInput(
+                'pitch_diameter_cs', 'CS-Gear Diameter', '', 1, True)
             _pitch_diameter_mp = inputs.addTextBoxCommandInput(
                 'pitch_diameter_mp', 'MP-Gear Diameter', '', 1, True)
 
@@ -715,8 +715,8 @@ def SaveValueAsAttributes(attribs):
     attribs.add(_app_name, 'backlash', str(_backlash.value))
     attribs.add(_app_name, 'gear_ratio', str(_gear_ratio.value))
 
-    # SH Gear
-    attribs.add(_app_name, 'num_teeth_sh', str(_num_teeth_sh.value))
+    # CS Gear
+    attribs.add(_app_name, 'num_teeth_cs', str(_num_teeth_cs.value))
 
     # MP Gear
     attribs.add(_app_name, 'thickness', str(_thickness.value))
@@ -760,7 +760,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                     pressureAngle = 25.0 * (math.pi/180)
 
             rootFilletRad = _rootFilletRad.value
-            num_teeth = int(_num_teeth_sh.value)
+            num_teeth = int(_num_teeth_cs.value)
             num_rotation_steps = int(_num_rotation_steps.value)
 
             # Create the gear.
@@ -770,19 +770,19 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics = ABENICS(design=des,
                               module=_module.value,
                               pressure_angle=pressureAngle,
-                              num_teeth_sh=num_teeth,
+                              num_teeth_cs=num_teeth,
                               gear_ratio=_gear_ratio.value,
                               thickness=_thickness.value,
                               hole_diameter=_holeDiam.value,
                               backlash=_backlash.value)
             abenics.print()
 
-            abenics.make_sh_comp()
+            abenics.make_cs_comp()
             # Create a new sketch.
-            sketches = abenics.sh_comp.sketches
-            xyPlane = abenics.sh_comp.xYConstructionPlane
+            sketches = abenics.cs_comp.sketches
+            xyPlane = abenics.cs_comp.xYConstructionPlane
 
-            # SH Gear 1
+            # CS Gear 1
             baseSketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(baseSketch)
             abenics.revolve_ballgear(sk, ax_line)
@@ -800,7 +800,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             for i in range(num_rotation_steps):
                 timelineGroups = des.timeline.timelineGroups
                 e = abenics.engrave()
-                sh, mp = abenics.rotate_gears(delta_angle)
+                cs, mp = abenics.rotate_gears(delta_angle)
                 timelineGroup = timelineGroups.add(
                     e.timelineObject.index, mp.timelineObject.index)
                 if i == 0:
@@ -817,12 +817,12 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             except:
                 pass
 
-            # SH Gear 2
+            # CS Gear 2
             # reset rotation
             sh_angle = -2*math.pi/(abenics.gear_ratio+1.0e-9)
-            moves = abenics.sh_comp.features.moveFeatures
+            moves = abenics.cs_comp.features.moveFeatures
             bodies = adsk.core.ObjectCollection.create()
-            bodies.add(abenics.sh_comp.bRepBodies.item(0))
+            bodies.add(abenics.cs_comp.bRepBodies.item(0))
             tf = adsk.core.Matrix3D.create()
             tf.setToRotation(
                 angle=sh_angle,
@@ -832,18 +832,18 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             move_input = moves.createInput(bodies, tf)
             move_sh = moves.add(move_input)
             # intersect gear
-            sketches = abenics.sh_comp.sketches
-            xyPlane = abenics.sh_comp.xYConstructionPlane
+            sketches = abenics.cs_comp.sketches
+            xyPlane = abenics.cs_comp.xYConstructionPlane
             i_sketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
             # bodies = adsk.core.ObjectCollection.create()
-            # bodies.add(abenics.sh_comp.bRepBodies.item(0))
+            # bodies.add(abenics.cs_comp.bRepBodies.item(0))
             rev_feature = abenics.revolve_ballgear(
                 sk, ax_line,
                 operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation,
-                bodies=[abenics.sh_comp.bRepBodies.item(0)])
+                bodies=[abenics.cs_comp.bRepBodies.item(0)])
 
-            abenics.sh_comp.name = 'SH_Gear'
+            abenics.cs_comp.name = 'CS_Gear'
             abenics.mp_comp.name = 'MP_Gear'
         except:
             if _ui:
@@ -869,13 +869,13 @@ class GearCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
             des = adsk.fusion.Design.cast(_app.activeProduct)
 
-            d_sh = _module.value*int(_num_teeth_sh.value)
-            d_mp = d_sh/(_gear_ratio.value+1.0e-9)
+            d_cs = _module.value*int(_num_teeth_cs.value)
+            d_mp = d_cs/(_gear_ratio.value+1.0e-9)
             d_mp = round(d_mp, 2)
-            _pitch_diameter_sh.text = '{:0.2f} mm'.format(d_sh)
+            _pitch_diameter_cs.text = '{:0.2f} mm'.format(d_cs)
             _pitch_diameter_mp.text = '{:0.2f} mm'.format(d_mp)
-            # _pitch_diameter_sh.text = des.unitsManager.formatInternalValue(
-            #     0.1*d_sh, _units, True)
+            # _pitch_diameter_cs.text = des.unitsManager.formatInternalValue(
+            #     0.1*d_cs, _units, True)
             # _pitch_diameter_mp.text = des.unitsManager.formatInternalValue(
             #     0.1*d_mp, _units, True)
 
@@ -903,12 +903,12 @@ class GearCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
             _errMessage.text = ''
 
             # Verify that at least 4 teeth are specified.
-            if not _num_teeth_sh.value.isdigit():
+            if not _num_teeth_cs.value.isdigit():
                 _errMessage.text = 'The number of teeth must be a whole number.'
                 eventArgs.areInputsValid = False
                 return
             else:
-                numTeeth = int(_num_teeth_sh.value)
+                numTeeth = int(_num_teeth_cs.value)
 
             if numTeeth < 4:
                 _errMessage.text = 'The number of teeth must be 4 or more.'
