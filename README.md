@@ -14,7 +14,7 @@ You have to pay attention to create and use the gears and application.
 Clone this project in your environment.
 
 ```
-git clone https://github.com/botamochi6277/ABANICS-Maker.git
+git clone https://github.com/botamochi6277/ABENICS-Maker.git
 ```
 
 Run Fusion360 and open **Scripts and Add Ins** tab. Add `ABENICS.py` to **My Scripts**
