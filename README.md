@@ -21,7 +21,7 @@ Run Fusion360 and open **Scripts and Add Ins** tab. Add `ABENICS.py` to **My Scr
 
 <img width="454" alt="ScreenShot 2021-07-30 14 15 51" src="https://user-images.githubusercontent.com/14128408/127620805-5c13ea0c-b9b4-4f21-9a2d-2154df805593.png">
 
-Input parameters and run.
+Input parameters and run. You can get gears of ABENICS. 
 
 ## Parameters
 
@@ -36,7 +36,9 @@ Input parameters and run.
 - Gear Ratio: Gear Ratio of CS-Gear/MP-Gear
 - Num. of rotation steps: the number of rotation steps for engraving MP-Gear. When it is 36 steps, MP-Gear rotates by 10deg in every step.
 
-## Process
+## What this code does
+
+This code runs according to the ABENICS Paper. The following list may you help to custumize the script
 
 1. Draw a half gear sketch of a CS-gear
 1. Revolve the sketch profile to make a CS-Gear body
