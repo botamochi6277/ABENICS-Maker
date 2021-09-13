@@ -21,7 +21,7 @@ Run Fusion360 and open **Scripts and Add Ins** tab. Add `ABENICS.py` to **My Scr
 
 <img width="454" alt="ScreenShot 2021-07-30 14 15 51" src="https://user-images.githubusercontent.com/14128408/127620805-5c13ea0c-b9b4-4f21-9a2d-2154df805593.png">
 
-Input parameters and run. You can get gears of ABENICS. 
+Input parameters and run. You can get gears of ABENICS.
 
 ## Parameters
 
@@ -29,7 +29,7 @@ Input parameters and run. You can get gears of ABENICS.
 
 - Pressure Angle : pressure angle of teeth. It is usually 20 deg.
 - Module : module of a gear sketch. it is size of a tooth.
-- Backlash : Backlash of the gear.
+- Backlash : Backlash of the gear. It shrinks the cs-gear sketch and enlarges the sh-cutter sketch.
 - Gear Thickness: Thickness of MP-Gear
 - Hole Diameter: Hole diameter of MP-Gear
 - Num. of teeth of CS-Gear: the number of teeth of CS-Gear
@@ -38,12 +38,15 @@ Input parameters and run. You can get gears of ABENICS.
 
 ## What this code does
 
-This code runs according to the ABENICS Paper. The following list may you help to custumize the script
+This code runs according to the ABENICS Paper. The following list may you help to customize the script
 
-1. Draw a half gear sketch of a CS-gear
-1. Revolve the sketch profile to make a CS-Gear body
+1. Draw a half gear sketch of a SH-Cutter
+1. Revolve the sketch profile to make a SH-Cutter body
 1. Draw a ring sketch for a MP-Gear
 1. Extrude the sketch profiles to make a MP-Gear body
-1. Engrave and rotate the MP-Gear
-1. Draw a half gear sketch of CS-gear
+1. Engrave and rotate the MP-Gear with SH-Cutter
+1. Remove SH-Cutter
+1. Draw a half gear sketch of a CS-gear
+1. Revolve the sketch profile to make a CS-Gear body
+1. Draw another half gear sketch of CS-gear for intersection
 1. Revolve the sketch profile to intersect the CS-Gear body
