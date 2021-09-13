@@ -162,18 +162,29 @@ class ABENICS:
         print('diameter_cs : {:0.2f} mm'.format(10*self.diameter_cs))
         print('diameter_mp : {:0.2f} mm'.format(10*self.diameter_mp))
 
+    def make_sh_cutter_comp(self):
+        mat = adsk.core.Matrix3D.create()
+        newOcc = self.root_occurrences.addNewComponent(mat)
+        self.sh_cutter_comp = adsk.fusion.Component.cast(newOcc.component)
+        self.sh_cutter_comp.name = 'SH-Cutter'
+
     def make_cs_comp(self):
         mat = adsk.core.Matrix3D.create()
         newOcc = self.root_occurrences.addNewComponent(mat)
         self.cs_comp = adsk.fusion.Component.cast(newOcc.component)
+        self.cs_comp.name = 'CS-Gear:{}'.format(self.num_teeth_cs)
 
     def make_mp_comp(self):
         mat = adsk.core.Matrix3D.create()
         newOcc = self.root_occurrences.addNewComponent(mat)
         self.mp_comp = adsk.fusion.Component.cast(newOcc.component)
+        self.mp_comp.name = 'MP-Gear:{}'.format(self.num_teeth_mp)
 
-    def draw_tooth(self, sketch, root_diameter, tip_diameter, angle=0):
-        base_diameter = self.diameter_cs * math.cos(self.pressure_angle)
+    def draw_tooth(self, sketch, root_diameter, tip_diameter, angle=0, backlash=None):
+        """draw tooth of a gear
+        """
+        base_diameter = self.diameter_cs * \
+            math.cos(self.pressure_angle)
 
         # Calculate points along the involute curve.
         involute_point_count = 15  # resolution
@@ -194,8 +205,10 @@ class ABENICS:
         # ! this is half circular pitch angle
         tooth_thickness_angle = (2 * math.pi) / (2 * self.num_teeth_cs)
 
+        if backlash is None:
+            backlash = self.backlash
         # Determine the angle needed for the specified backlash.
-        backlashAngle = (self.backlash / (0.5*self.diameter_cs)) * .25
+        backlashAngle = (backlash / (0.5*self.diameter_cs)) * .25
 
         # Determine the angle to rotate the curve.
         rotate_angle = -((0.5*tooth_thickness_angle) +
@@ -273,10 +286,9 @@ class ABENICS:
     def assign_values(self, **kwargs):
         pass
 
-    def draw_gear(self, sketch, axis_angle=0):
+    def draw_gear(self, sketch, axis_angle=0, backlash=None):
         # https://eow.alc.co.jp/search?q=dedendum
         # https://khkgears.net/new/gear_knowledge/abcs_of_gears-b/basic_gear_terminology_calculation.html
-        # what is 20?
 
         # Tooth depth
         # h = 2.25 * self.module
@@ -290,9 +302,7 @@ class ABENICS:
         baseCircleDia = self.diameter_cs * math.cos(self.pressure_angle)
 
         # tip diameter
-        # outsideDia = (self.num_teeth_cs + 2) / self.diameter_cs
         tip_diameter = self.diameter_cs + 2 * self.module * 0.1
-        # tip_diameter = self.diameter_cs + 2 * addendum
 
         origin = adsk.core.Point3D.create(0, 0, 0)
         # Draw a root fan shape.
@@ -318,17 +328,18 @@ class ABENICS:
             self.draw_tooth(sketch,
                             root_diameter=root_dia,
                             tip_diameter=tip_diameter,
-                            angle=angle)
+                            angle=angle,
+                            backlash=backlash)
 
         sketch.isComputeDeferred = False
 
         return sketch, l
 
-    def revolve_ballgear(self, sk, ax_line,
+    def revolve_ballgear(self, comp, sk, ax_line,
                          operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
                          bodies=None):
         # revolve profiles
-        revolves = self.cs_comp.features.revolveFeatures
+        revolves = comp.features.revolveFeatures
         profile_set = adsk.core.ObjectCollection.create()
         for i in range(len(sk.profiles)):
             profile_set.add(sk.profiles.item(i))
@@ -373,7 +384,7 @@ class ABENICS:
     def engrave(self):
         combines = self.mp_comp.features.combineFeatures
         tool_bodies = adsk.core.ObjectCollection.create()
-        tool_bodies.add(self.cs_comp.bRepBodies.item(0))
+        tool_bodies.add(self.sh_cutter_comp.bRepBodies.item(0))
         combine_input = combines.createInput(
             targetBody=self.mp_comp.bRepBodies.item(0),
             toolBodies=tool_bodies
@@ -390,9 +401,9 @@ class ABENICS:
         """
         z_up = adsk.core.Vector3D.create(0, 0, 1)
         # rotate cs gear
-        moves = self.cs_comp.features.moveFeatures
+        moves = self.sh_cutter_comp.features.moveFeatures
         bodies = adsk.core.ObjectCollection.create()
-        bodies.add(self.cs_comp.bRepBodies.item(0))
+        bodies.add(self.sh_cutter_comp.bRepBodies.item(0))
 
         tf = adsk.core.Matrix3D.create()
         tf.setToRotation(
@@ -777,17 +788,17 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
                               backlash=_backlash.value)
             abenics.print()
 
-            abenics.make_cs_comp()
-            # Create a new sketch.
-            sketches = abenics.cs_comp.sketches
-            xyPlane = abenics.cs_comp.xYConstructionPlane
-
-            # CS Gear 1
+            ### Make SH cutter ###
+            abenics.make_sh_cutter_comp()
+            sketches = abenics.sh_cutter_comp.sketches
+            xyPlane = abenics.sh_cutter_comp.xYConstructionPlane
             baseSketch = sketches.add(xyPlane)
-            sk, ax_line = abenics.draw_gear(baseSketch)
-            abenics.revolve_ballgear(sk, ax_line)
+            # draw gear sketch enlarged by backlash
+            sk, ax_line = abenics.draw_gear(
+                baseSketch, backlash=-abenics.backlash)
+            abenics.revolve_ballgear(abenics.sh_cutter_comp, sk, ax_line)
 
-            # MP Gear
+            ### MP Gear ###
             abenics.make_mp_comp()
             sketches = abenics.mp_comp.sketches
             xyPlane = abenics.mp_comp.xYConstructionPlane
@@ -795,11 +806,11 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             abenics.draw_mp_sketch(mp_sketch)
             abenics.extrude_mp(mp_sketch, abenics.thickness_mp)
 
-            # Engrave MP-Gear and rotate both gears
+            ## Engrave MP-Gear and rotate both gears ###
             delta_angle = (2*math.pi) / num_rotation_steps
             for i in range(num_rotation_steps):
                 timelineGroups = des.timeline.timelineGroups
-                e = abenics.engrave()
+                e = abenics.engrave()  # engrove mp-gear with cs-cutter
                 cs, mp = abenics.rotate_gears(delta_angle)
                 timelineGroup = timelineGroups.add(
                     e.timelineObject.index, mp.timelineObject.index)
@@ -808,6 +819,7 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
 
             last_group = timelineGroup
 
+            # try to group engroving features
             # this will be fail
             try:
                 timelineGroups = des.timeline.timelineGroups
@@ -817,34 +829,31 @@ class GearCommandExecuteHandler(adsk.core.CommandEventHandler):
             except:
                 pass
 
-            # CS Gear 2
-            # reset rotation
-            sh_angle = -2*math.pi/(abenics.gear_ratio+1.0e-9)
-            moves = abenics.cs_comp.features.moveFeatures
-            bodies = adsk.core.ObjectCollection.create()
-            bodies.add(abenics.cs_comp.bRepBodies.item(0))
-            tf = adsk.core.Matrix3D.create()
-            tf.setToRotation(
-                angle=sh_angle,
-                axis=adsk.core.Vector3D.create(0, 0, 1),
-                origin=adsk.core.Point3D.create(0, 0, 0)
-            )
-            move_input = moves.createInput(bodies, tf)
-            move_sh = moves.add(move_input)
-            # intersect gear
+            # remove sh_cutter
+            remove_features = abenics.sh_cutter_comp.features.removeFeatures
+            # remove = remove_features.add(abenics.sh_cutter_comp) # Invalid Input
+            remove = remove_features.add(
+                abenics.sh_cutter_comp.bRepBodies.item(0))
+
+            ###  CS Gear ###
+            abenics.make_cs_comp()
+            # Create a new sketch.
             sketches = abenics.cs_comp.sketches
             xyPlane = abenics.cs_comp.xYConstructionPlane
+            baseSketch = sketches.add(xyPlane)
+            sk, ax_line = abenics.draw_gear(baseSketch)
+            abenics.revolve_ballgear(abenics.cs_comp, sk, ax_line)
+            # intersect gear
             i_sketch = sketches.add(xyPlane)
             sk, ax_line = abenics.draw_gear(i_sketch, axis_angle=0.5*math.pi)
             # bodies = adsk.core.ObjectCollection.create()
             # bodies.add(abenics.cs_comp.bRepBodies.item(0))
             rev_feature = abenics.revolve_ballgear(
+                abenics.cs_comp,
                 sk, ax_line,
                 operation=adsk.fusion.FeatureOperations.IntersectFeatureOperation,
                 bodies=[abenics.cs_comp.bRepBodies.item(0)])
 
-            abenics.cs_comp.name = 'CS_Gear'
-            abenics.mp_comp.name = 'MP_Gear'
         except:
             if _ui:
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
