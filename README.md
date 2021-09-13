@@ -17,7 +17,7 @@ Clone this project in your environment.
 git clone https://github.com/botamochi6277/ABENICS-Maker.git
 ```
 
-Run Fusion360 and open **Scripts and Add Ins** tab. Add `ABENICS.py` to **My Scripts**
+Run Fusion360 and open **Scripts and Add Ins** tab. Add `ABENICS.py` to **My Scripts** with pushing "+" icon. When you have some troubles to adding, visit [the official instruction page](https://knowledge.autodesk.com/support/fusion-360/troubleshooting/caas/sfdcarticles/sfdcarticles/How-to-install-an-ADD-IN-and-Script-in-Fusion-360.html).
 
 <img width="454" alt="ScreenShot 2021-07-30 14 15 51" src="https://user-images.githubusercontent.com/14128408/127620805-5c13ea0c-b9b4-4f21-9a2d-2154df805593.png">
 
